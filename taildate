@@ -1,0 +1,3 @@
+#!/bin/sh
+### Hace tail -f incluyendo además la hora.
+tail -f $* | awk '{now=strftime("%T ");sub(/^/, now);print}'

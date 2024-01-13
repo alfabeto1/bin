@@ -1,0 +1,149 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<howmany> - Para saber cuantos tipos diferentes de ficheros hay en un directorio
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item howmany [-h|--help|-u|-V|--version]
+
+=item howmany [-v]
+
+=back
+
+=head1 DESCRIPTION
+
+Cuenta todos los tipos de ficheros existentes en la carpeta actual (y
+subcarpetas), y muestra un recuento.
+
+No tiene en cuenta mayúsculas y minúsculas. Ej.: Los ficheros F<.HTML> se
+cuentan junto a los F<.html>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-n>
+
+Ordenar por el número de ficheros.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my $dir;
+my $cmd;
+my @listing;
+my $ext;
+my %exts;
+my $total = 0;
+my %opt;
+
+# }}}
+# {{{ Parametros
+getopts( 'hnuvV', \%opt ) or usage('Fallo parámetros');
+help()              if $opt{h};
+usage()             if $opt{u};
+if ($opt{V}){version();exit 1;}
+warn "Args=@ARGV\n" if $opt{v};
+$dir     = $ARGV[0] || ".";
+$cmd     = "find $dir";
+@listing = sort split /\n/, `$cmd`;
+shift @listing; # Despreciamos el primero que es el directorio actual
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Recuento
+for (@listing) {
+    if (-d $_){
+        $ext = 'DIR';
+    } else {
+        ($ext) = /\.([a-z0-9]+)$/i;
+        $ext ||= 'noextension';
+        $ext=lc($ext);
+    }
+    $exts{ $ext }++;
+}
+
+# }}}
+# {{{
+# Mostrar resultados
+if ($opt{n}){
+    for ( sort { $exts{$a} <=> $exts{$b} } keys %exts ) {
+        printf "%-11s:%6d\n", $_, $exts{$_};
+        $total += $exts{$_};
+    }
+} else {
+    for ( sort keys %exts ) {
+        printf "%-11s:%6d\n", $_, $exts{$_};
+        $total += $exts{$_};
+    }
+}
+printf "%-11s:%6d\n", 'TOTAL', $total;
+exit 0;
+# }}}

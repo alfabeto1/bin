@@ -1,0 +1,860 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<names> - Limpia y normaliza los nombres de fichero
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<names> [-h|--help|-u|-V|--version]
+
+=item B<names> [-e] [-v] [FILE...]
+
+=item B<names> [-a] [-v] [-t] [-i] [FILE...]
+
+=back
+
+=head1 DESCRIPTION
+
+Limpia y normaliza los nombres de fichero
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-a>
+
+Cambia vocales acentuadas y varias letras europeas.
+
+=item B<-A>
+
+Cambia vocales acentuadas, varias letras europeas y además
+también las eñes y cedillas.
+
+=item B<-e>
+
+Comprueba la extensión que le corresponda a cada archivo.
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-i>
+
+Interactiva. Pregunta antes de renombrar.
+
+=item B<-t>
+
+Test mode. No ejecuta, solo muestra los cambios que se harían.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2013 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use utf8;
+use open qw(:std :utf8);
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.4 $, 10;
+
+# }}}
+# {{{ Variables
+my @files = qw//;
+my @args  = qw//;
+my %opt;
+
+# }}}
+# {{{ Parametros
+getopts("aAehitruvV", \%opt) or usage("Fallo parámetros");
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+usage("-e y -a son incompatibles") if ($opt{e} and $opt{a});
+usage("-e y -A son incompatibles") if ($opt{e} and $opt{A});
+$opt{a} = 1     if $opt{A};
+$opt{v} = 1     if $opt{t};
+@args   = @ARGV if @ARGV;
+
+# }}}
+# {{{
+# Chequeo previo
+if (-e ".nonames") {
+    print ".nonames file found. Aborting.\n";
+    exit 0;
+}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Obtener lista de ficheros a tratar
+if ($opt{r}) {
+    my $findcmd = "find -type f" . join(' ', @args) . ' ' . '|';
+    open FILE, $findcmd or die "No se pudo ejecutar find. $!\n";
+    while (<FILE>) {
+        chomp;
+        # next if /\/\./;
+        next if $_ eq '.';
+        next if $_ =~ /.md5sums/;
+        push @files, $_;
+    }
+    close FILE;
+    $findcmd = "find -type d" . join(' ', @args) . ' ' . '|';
+    open FILE, $findcmd or die "No se pudo ejecutar find. $!\n";
+    while (<FILE>) {
+        chomp;
+        # next if /\/\./;
+        next if $_ eq '.';
+        push @files, $_;
+    }
+    close FILE;
+} else {
+    if (@args) {
+        @files = @args;
+    } else {
+        opendir DIR, '.' or die "No se pudo abrir directorio actual.  $!\n";
+        while (readdir(DIR)) {
+            push @files, $_;
+        }
+        closedir DIR;
+    }
+}
+
+# }}}
+# {{{
+# Procesar
+foreach my $f1 (sort @files) {
+    print "Procesando $f1\n" if $opt{v};
+    my $dir = '';
+    if ($opt{e}) {
+        my $e = que_ext($f1);
+        if ($e) {
+            if ($e eq 'NULL') {
+                system "file '$f1'";
+            } else {
+                my $ok = 0;
+                for my $k (split /,/, $e) {
+                    if (!$k or $f1 =~ /\.$k$/) {
+                        $ok = 1;
+                        last;
+                    }
+                }
+                if (!$ok) {
+                    if (!$opt{t}) {
+                        if (!$opt{i} or ask("Renombrar\n")) {
+                            print "'$f1' --> '$e' \n";
+                            if (!rename($f1, "$f1.$e")) {
+                                print "No se pudo renombrar. $!\n";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        my $esdir = -d $f1;
+        if ($f1 =~ /\//) {
+            $f1 =~ /^(.*\/)(.+)$/;
+            $dir = $1 or die;
+            $f1 = $2;
+        }
+        my $f2 = $f1;
+        my $f3 = '';
+        while ($f3 ne $f2) {
+            $f3 = $f2;
+            $f2 = clean_name($f2, $esdir);
+        }
+        if ($opt{a}) {
+            $f2 = recode($f2, $opt{A});
+        }
+        print "     $f2\n" if $opt{v};
+        if ($f1 ne $f2) {
+            if (-d "$dir$f1" and -d "$dir$f2") {
+                print "Ambos son directorios\n";
+                my $cmd = "mv -v \"$dir$f1/\"*  \"$dir$f2\/\"";
+                system $cmd if (!$opt{i} or ask($cmd));
+            } else {
+                while (-e "$dir$f2") {
+                    $f2 = "_$f2";
+                    last if ($f1 eq $f2);
+                }
+                if ($f1 ne $f2) {
+                    if ($opt{t}) {
+                        print "'$f1' --> '$f2'.\n";
+                    } else {
+                        if (!$opt{i} or ask("rename $dir$f1 $dir$f2")) {
+                            print "'$f1' --> '$f2'.\n";
+                            if (!rename("$dir$f1", "$dir$f2")) {
+                                print "     $!\n";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+}
+
+# }}}
+exit;
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub ask {
+    my $t = shift;
+    print "$t\n";
+    print "Y/N ==>";
+    my $a = <>;
+    if ($a =~ /^(Y|S)/i) {
+        return 1;
+    }
+    return 0;
+}
+
+# }}}
+# {{{
+sub change_not_utf {
+    #----------------------------------------------------------+
+    # Toma un string y lo devuelve con todos los caracteres no |
+    # validos convertidos en subrayados                        |
+    #----------------------------------------------------------+
+    my $t      = shift;
+    my $result = '';
+    while ($t) {
+        if ($t =~ s/^([\016-\177]+)// or
+            $t =~ s/^([\300-\337][\200-\277]+)//   or
+            $t =~ s/^([\340-\357][\200-\277]{2})// or
+            $t =~ s/^([\360-\367][\200-\277]{3})// or
+            $t =~ s/^([\370-\373][\200-\277]{4})// or
+            $t =~ s/^([\374-\375][\200-\277]{5})//) {
+            $result .= $1;
+        } else {
+            $result .= '_';
+            $t = substr($t, 1);
+        }
+    }
+    return $result;
+}
+
+# }}}
+# {{{
+sub clean_name {
+    my $t     = shift;
+    my $torig = $t;
+    my $esdir = shift;
+    if ($esdir) {
+        $t =~ s/\./-/g;
+    } else {
+        if ($t =~ /\./) {
+            my @c = split /\./, $t;
+            my $e = pop @c;
+            $t = join('-', @c) . ".$e";
+        }
+    }
+    $t =~ s/À/A/g;
+    $t =~ s/Á/A/g;
+    $t =~ s/È/E/g;
+    $t =~ s/É/E/g;
+    $t =~ s/Ì/I/g;
+    $t =~ s/Í/I/g;
+    $t =~ s/Ï/I/g;
+    $t =~ s/Ò/O/g;
+    $t =~ s/Ó/O/g;
+    $t =~ s/Ö/O/g;
+    $t =~ s/Ù/U/g;
+    $t =~ s/Ú/U/g;
+    $t =~ s/Ü/U/g;
+    $t =~ s/à/a/g;
+    $t =~ s/á/a/g;
+    $t =~ s/è/e/g;
+    $t =~ s/é/e/g;
+    $t =~ s/ì/i/g;
+    $t =~ s/í/i/g;
+    $t =~ s/ï/i/g;
+    $t =~ s/ò/o/g;
+    $t =~ s/ó/o/g;
+    $t =~ s/ö/o/g;
+    $t =~ s/ù/u/g;
+    $t =~ s/ú/u/g;
+    $t =~ s/ü/u/g;
+    $t =~ s/Ñ/nn/g;
+    $t =~ s/ñ/nn/g;
+    $t =~ s/[^[:ascii:]]//g;
+    $t =~ s/;/_/g;
+    $t =~ s/:/_/g;
+    # $t =~ s/[_-]?[cv][_-]?\d?[_-]\d\././ig;
+    # $t =~ s/([A-Za-z])[_-]?1[_-]0/$1./ig;
+    $t =~ s/%20/_/g;
+    $t =~ s/%/_/g;
+    $t =~ s/&/_/g;
+    $t =~ s/(www.)?descargas2020.(com|org)//i;
+    $t =~ s/(Second|2nd).?Edition/2Ed/i;
+    $t =~ s/(www.)?pctnew.(com|org)//i;
+    $t =~ s/Temporada_.[_-]Cap[_-](.)/$1x/i;
+    $t =~ s/wWw.EliteTorrent.biZ//i;
+    $t =~ s/_by_ZonaRippers_sharetv_es//i;
+    $t =~ s/_by_canibales_.*\././i;
+    $t =~ s/sub.by.depechemode13//i;
+    $t =~ s/wWw.EliteTorrent.is//i;
+    $t =~ s/www.torrent\w+.com//i;
+    $t =~ s/Third.?Edition/3Ed/i;
+    $t =~ s/elitetorrent.net//i;
+    $t =~ s/3rd.?Edition/3Ed/i;
+    $t =~ s/maxitorrent.com//i;
+    $t =~ s/pctreload1?.com//i;
+    $t =~ s/descargas2020//i;
+    $t =~ s/total_com//i;
+    $t =~ s/newpct1?.com//i;
+    $t =~ s/newpct//i;
+    $t =~ s/emulesonic.com//i;
+    $t =~ s/portorrent.com//i;
+    $t =~ s/www.newpct.com//i;
+    $t =~ s/www.atope.com//i;
+    $t =~ s/www.total.com//i;
+    $t =~ s/-GrupoHDS.*\././;
+    $t =~ s/redemule.com/./i;
+    $t =~ s/sub.by.nash/./i;
+    $t =~ s/yadi?xv.com//;
+    $t =~ s/yadi?xv.ocm//;
+    $t =~ s/pctmix.com//i;
+    $t =~ s/by-Phenom//;
+    $t =~ s/by-Geot//;
+    $t =~ s/\bHEVC\b//;
+    $t =~ s/\b10b\b//;
+    $t =~ s/\bSubs\b//;
+    $t =~ s/\bHD\b//;
+    $t =~ s/by-Rowdy//;
+    $t =~ s/by-guerrero36//;
+    $t =~ s/by-PacBue//;
+    $t =~ s/by-Slower//;
+    $t =~ s/filibusteros-com//;
+    $t =~ s/sharereactor//i;
+    $t =~ s/EliteTorrent//i;
+    $t =~ s/webrip.*\././i;
+    $t =~ s/centraldivx//i;
+    $t =~ s/spa-eng-sub//i;
+    $t =~ s/[_-]5.1[_-]//;
+    $t =~ s/BDrip.720p//i;
+    $t =~ s/castellano//i;
+    $t =~ s/bluray.?rip//i;
+    $t =~ s/hdit.1080//i;
+    $t =~ s/HDitunes//i;
+    $t =~ s/sharerip//i;
+    $t =~ s/-fly\././i;
+    $t =~ s/web.dl//i;
+    $t =~ s/^ebook//i;
+    $t =~ s/_BBL_//;
+    $t =~ s/SG-1/SG1/;
+    $t =~ s/lotb//i;
+    $t =~ s/www-//i;
+    $t =~ s/x264//i;
+    $t =~ s/AAC//;
+    $t =~ s/720p//i;
+    $t =~ s/1080p//i;
+    $t =~ s/BD1080//g;
+    $t =~ s/www.newpct1.com//i;
+    $t =~ s/bdrip//i;
+    $t =~ s/dvdrip//i;
+    $t =~ s/(\d)X(\d)/$1x$2/;
+    $t =~ s/^,//;
+    $t =~ s/\[?HDTV\]?//i;
+    $t =~ s/\[?spanish\]?//i;
+    $t =~ s/\[?English\]?//i;
+    $t =~ s/\[Cap\.(\d)(.*)\]/$1x$2/i;
+    $t =~ s/[_-]Temp[_-][123]//;
+    $t =~ s/ /_/g;
+    $t =~ s/!/_/g;
+    $t =~ s/-$//g;
+    $t =~ s/\[\d+\]//;
+    $t =~ s/,/-/g;
+    $t =~ s/'//g;
+    $t =~ s/\(/-/g;
+    $t =~ s/\)/-/g;
+    $t =~ s/-\././g;
+    $t =~ s/\.\././g;
+    $t =~ s/(\d)\.(\d)/$1-$2/g;
+    $t =~ s/\'/-/g;
+    $t =~ s/\@/_/g;
+    $t =~ s/\\/_/g;
+    $t =~ s/\^+//;
+    $t =~ s/\`//g;
+    $t =~ s/^\)+/_/g;
+    $t =~ s/^\'+/_/g;
+    $t =~ s/^\s+/_/;
+    $t =~ s/^_+//g;
+    $t =~ s/^-+//;
+    $t =~ s/_$//;
+    $t =~ s/_\././g;
+    $t =~ s/=/_/g;
+    $t =~ s/_[_\-]+/_/g;
+    $t =~ s/-[_\-]+/-/g;
+    $t =~ s/brripspa/./i;
+    $t =~ s/[_-]dual/./i;
+    $t =~ s/[_-]AC3/./i;
+    $t =~ s/[_-]HDTV/./i;
+    $t =~ s/[_-]xvid/./i;
+    $t =~ s/[_-]divx/./i;
+    $t =~ s/[_-]MP3\.?_?-?/./i;
+    $t =~ s/[_-]spanish.*\././i;
+    $t =~ s/[_-]satrip.*\././i;
+    $t =~ s/[_-]hdrip.*\././i;
+    $t =~ s/[_-]dvdrip.*\././i;
+    $t =~ s/[_-]dvd\././i;
+    $t =~ s/[_-]brrip\././i;
+    $t =~ s/[_-]480p\././i;
+    $t =~ s/^\.//g;
+    $t =~ s/[_-]dvd[_-].*\././i;
+    $t =~ s/[_-]AVI\b//i;
+    $t =~ s/[_-]MOV\b//i;
+    $t =~ s/[_-]PDF\b//i;
+    $t =~ s/[_-]MP4\b//i;
+    $t =~ s/[_-]WEBM\b//i;
+    $t =~ s/[_-]M4V\b//i;
+    $t =~ s/[_-]MKV\b//i;
+    $t =~ s/[_-]flv\b//i;
+    $t =~ s/[_-]flac\b//i;
+    $t =~ s/[_-]MPE?G\b//i;
+    $t =~ s/\.AVI$/.avi/i;
+    $t =~ s/\.BMP$/.bmp/i;
+    $t =~ s/\.CHM$/.chm/i;
+    $t =~ s/\.DIVX$/.avi/i;
+    $t =~ s/\.DOC$/.doc/i;
+    $t =~ s/\.EPUB$/.epub/i;
+    $t =~ s/\.FB2$/.fb2/i;
+    $t =~ s/\.FLV$/.flv/i;
+    $t =~ s/\.GIF$/.gif/i;
+    $t =~ s/\.HTM$/.htm/i;
+    $t =~ s/\.HTML$/.html/i;
+    $t =~ s/\.ISO$/.iso/i;
+    $t =~ s/\.JPE?G$/.jpg/i;
+    $t =~ s/\.LIT$/.lit/i;
+    $t =~ s/\.MHT$/.mht/i;
+    $t =~ s/\.MOBI$/.mobi/i;
+    $t =~ s/\.MOV$/.mov/i;
+    $t =~ s/\.MP3$/.mp3/i;
+    $t =~ s/\.MP4$/.mp4/i;
+    $t =~ s/\.MPE?G$/.mpg/i;
+    $t =~ s/\.NFO$/.nfo/i;
+    $t =~ s/\.PDB$/.pdb/i;
+    $t =~ s/\.PDF$/.pdf/i;
+    $t =~ s/\.PNG$/.png/i;
+    $t =~ s/\.PPT$/.ppt/i;
+    $t =~ s/\.PRC$/.mobi/i;
+    $t =~ s/\.RAR$/.rar/i;
+    $t =~ s/\.RTF$/.rtf/i;
+    $t =~ s/\.SH$/.sh/i;
+    $t =~ s/\.TGA$/.tga/i;
+    $t =~ s/\.TXT$/.txt/i;
+    $t =~ s/\.URL$/.url/i;
+    $t =~ s/\.WAV$/.wav/i;
+    $t =~ s/\.XLS$/.xls/i;
+    $t =~ s/\.XML$/.xml/i;
+    $t =~ s/\.xvid$/.avi/i;
+    $t =~ s/\.ZIP$/.zip/i;
+    $t =~ s/desktopnexus.?com(.*.jpg)/$1/gi;
+    $t =~ s/desktop(.*.jpg)/$1/gi;
+    $t =~ s/wallpaper(.*.jpg)/$1/gi;
+    $t =~ s/image(.*.jpg)/$1/gi;
+    $t =~ s/screenshot(.*.jpg)/$1/gi;
+    $t =~ s/screen(.*.jpg)/$1/gi;
+    $t =~ s/background(.*.jpg)/$1/gi;
+    $t =~ s/wide(.*.jpg)/$1/gi;
+    $t =~ s/resolution(.*.jpg)/$1/gi;
+    $t =~ s/maxresdefault(.*.jpg)/$1/gi;
+    $t =~ s/pplware(.*.jpg)/$1/gi;
+    $t =~ s/\d\d\d\d_?x_?\d\d\d\d(.*.jpg)/$1/gi;
+    $t =~ s/x1080(.*.jpg)/_$1/gi;
+    $t =~ s/x1152(.*.jpg)/_$1/gi;
+    $t =~ s/x1440(.*.jpg)/_$1/gi;
+    $t =~ s/x1200(.*.jpg)/_$1/gi;
+    $t =~ s/(.+)[\.\-]jpg\.(\d+)$/$2--$1.jpg/gi;
+    $t =~ s/[_|-]ebook[-|_]/-/i;
+    $t =~ s/\[/_/;
+    $t =~ s/\]/_/;
+    $t =~ s/\.$//;
+    $t =~ s/–/-/g;
+    $t = change_not_utf($t);
+    $t =~ s/'/_/g;
+    $t =~ s/´/_/g;
+    $t =~ s/^_+//g;
+    $t =~ s/^-+//;
+    $t =~ s/_[_\-]+/_/g;
+    $t =~ s/-[_\-]+/-/g;
+    $t =~ s/Java_Script/JavaScript/i;
+    $t =~ s/J_Query/jQuery/i;
+    $t =~ s/-/_/g if $t=~/(mkv|mp4|avi|mp3|ogg|flac|wav|mpg|flv)$/;
+    $t =~ s/\.\.\.//g;
+    return $torig if length($t) < 4;
+    return $torig if $t =~ /^\./;
+    return $t;
+}
+
+# }}}
+# {{{
+sub que_ext {
+    # Devuelve la extensión o extensiones que le corresponden a un archivo según
+    # el contenido.
+    my $file = shift || return 'NULL';
+    my $type = `file "$file"`;
+    my %extensions = (
+                    'SVG Scalable Vector Graphics' => 'svg',
+                    'Microsoft Office Document'    => 'doc',
+                    'Microsoft PowerPoint 2007'    => 'pptx',
+                    'PE32 executable.*Windows'     => 'exe',
+                    'MS Windows HtmlHelp Data'     => 'chm',
+                    'Macromedia Flash Video'  => 'flv',
+                    'MPEG transport stream'   => 'mpg',
+                    'Apple QuickTime movie'   => 'mp4',
+                    'Compressed Google KML'   => 'kmz',
+                    'HTML Document,.*text'    => 'html',
+                    'MPEG ADTS, layer III'    => 'mp3',
+                    'Microsoft Excel 2007'    => 'xlsx',
+                    'gzip compressed data'    => 'gz',
+                    'Microsoft PowerPoint'    => 'ppt',
+                    'Audio file with ID3'     => 'mp3',
+                    'Microsoft Word 2007'     => 'docx',
+                    'UDF filesystem data'     => 'iso',
+                    'Ogg data, .* video'      => 'ogm',
+                    'Ogg data, .* audio'      => 'ogg',
+                    'UTF-8 Unicode text'      => 'txt',
+                    '7-Zip archive data'      => '7z',
+                    'Mobipocket E-Book'       => 'mobi',
+                    'Microsoft Outlook'       => 'pst',
+                    'RAR archive data'        => 'rar',
+                    'Rich Text Format'        => 'rtf',
+                    'ACE archive data'        => 'ace',
+                    'Zip archive data'        => 'zip',
+                    'EPUB ebook data'         => 'epub',
+                    'JPEG Image Data'         => 'jpg',
+                    'MS Windows Icon'         => 'ico',
+                    'Bittorrent file'         => 'torrent',
+                    'iso-8859.*text'          => 'txt',
+                    'GIF Image Data'          => 'gif',
+                    'PNG Image Data'          => 'png',
+                    'wrapped MPEG-1'          => 'mpg',
+                    'Microsoft ASF'           => 'wmv',
+                    'MPEG sequence'           => 'mpg',
+                    'PDF Document'            => 'pdf',
+                    'shell script'            => 'sh',
+                    'tar archive'             => 'tar',
+                    'ASCII.*text'             => 'txt',
+                    'Media, MPEG'             => 'mpg',
+                    'perl script'             => ',pl',
+                    'WAVE audio'              => 'wma',
+                    'POSIX tar '              => 'tar',
+                    'directory'               => '',
+                    'MPEG ADTS'               => 'mpg',
+                    'RIFF.*AVI'               => 'avi',
+                    'ISO 9660'                => 'iso',
+                    'matroska'                => 'mkv',
+                    'MP3 file'                => 'mp3',
+                    ': data$'                 => '',
+                    'RPM v3'                  => 'rpm',);
+    foreach my $k (sort {length($b) <=> length($a)} keys %extensions) {
+        if ($type =~ /$k/i) {
+            return $extensions{
+                $k};
+        }
+    }
+    return 'NULL';
+}
+
+# }}}
+# {{{
+sub recode {
+    my $t       = shift;
+    my $force_n = shift;
+    my $changes = q/
+                    á=a é=e í=i ó=o ú=u ý=y
+                    Á=A É=E Í=I Ó=O Ú=U Ý=Y
+                    à=a è=e ì=i ò=o ù=u
+                    À=A È=E Ì=I Ò=O Ù=U
+                    â=a ê=e î=i ô=o û=u
+                    Â=A Ê=E Î=I Ô=O Û=U
+                    ä=a ë=e ï=i ö=o ü=u ÿ=y
+                    Ä=A Ë=E Ï=I Ö=O Ü=U
+                    ã=a         õ=o
+                    Ã=A         Õ=O
+                    å=a
+                    Å=A
+                    æ=ae Æ=AE
+                    ð=d  Ð=D
+                    ø=o  Ø=O
+                    ß=ss
+                    þ=T Þ=t
+                    ª=a º=o
+                    \?=_ \!=_ \|=_ ¿=_ ¡=_
+                    '=_ "=_ `=_ ´=_ ¨=_ ·=_ #=_ %=_ ;=_ ,=_
+                    ¢=_ £=_ ¥=_ ¦=_ §=_ µ=_ ¶=_ ¨=_ ©=_ ¬=_
+                    «=_ »=_ ¼=_ ½=_ ¾=_ ×=_
+                    ­=- ®=_ ¯=_ °=_ ±=_ ¸=_ ÷=_
+                    ¹=1 ²=2 ³=3
+                   /; # To keep syntax highlight happy '
+    foreach my $token (split /\s+/, $changes) {
+        next unless $token;
+        my ($a, $b) = split /=/, $token;
+        $t =~ s/$a/$b/g;
+    }
+    if ($force_n) {
+        $t =~ s/ñ/n/g;
+        $t =~ s/Ñ/N/g;
+        $t =~ s/ç/c/g;
+        $t =~ s/Ç/C/g;
+    }
+    return $t;
+
+    # Cinco caracteres
+    $t =~ s/\xc2a\xc3\x91\x89/U/g;
+
+    # Cuatro caracteres
+    $t =~ s/\xc3\xb0\xc2\xa6/A/g;
+    $t =~ s/\xc3\x91\xc3\xb1/a/g;
+    $t =~ s/\x41\x83\xc2\xb3/o/g;
+    if ($force_n) {
+        $t =~ s/\x41\xe2\x96\x92/n/g;
+    } else {
+        $t =~ s/\x41\xe2\x96\x92/ñ/g;
+    }
+
+    # Tres caracteres
+    $t =~ s/\x41\x41\xb4/o/g;
+    $t =~ s/\x41\xc2\xae/e/g;
+    $t =~ s/\x41\xc3\xb4/o/g;
+    $t =~ s/\xc3\x91\x80/O/g;
+    $t =~ s/\xc3\x91\x89/e/g;
+    $t =~ s/\xc3\x91\x8d/i/g;
+    $t =~ s/\xc3\x91\x8e/a/g;
+    $t =~ s/\xcc\xc3\xb1//g;
+    $t =~ s/\xd1\x80\x4e/O/g;
+    $t =~ s/\xe2\x80\x93/-/g;
+    $t =~ s/\xe2\x80\x98/_/g;
+    $t =~ s/\xe2\x80\x99/_/g;
+    $t =~ s/\xe2\x80\x9c//g;
+    $t =~ s/\xe2\x80\x9d//g;
+    $t =~ s/\xe2\x80\xa2/-/g;
+    $t =~ s/\xe2\x80\xa2/-/g;
+    $t =~ s/\xe2\x80\xa6/-/g;
+    $t =~ s/\xe2\x94\x63/A/g;
+    $t =~ s/\xe2\x94\xb4/A/g;
+    $t =~ s/\xe2\x95\x93/I/g;
+    $t =~ s/\xe2\x95\x94/E/g;
+    $t =~ s/\xe2\x95\x96/O/g;
+    $t =~ s/\xe2\x95\x98/E/g;
+    $t =~ s/\xe2\x95\x99/O/g;
+    $t =~ s/\xe2\x95\xa1/A/g;
+    $t =~ s/\xe2\x96\xaa/a/g;
+    $t =~ s/nA\x83/a/g;
+    if ($force_n) {
+        $t =~ s/\x41\xc2\xa6/n/g;
+        $t =~ s/\x41\xc3\xa6/n/g;
+        $t =~ s/\xc3\x83\x91/N/g;
+        $t =~ s/\xc3\x91\x91/n/g;
+        $t =~ s/\xe2\x96\x8c/n/g;
+        $t =~ s/\xef\x83\xb1/n/g;
+    } else {
+        $t =~ s/\x41\xc2\xa6/ñ/g;
+        $t =~ s/\x41\xc3\xa6/ñ/g;
+        $t =~ s/\xc3\x83\x91/Ñ/g;
+        $t =~ s/\xc3\x91\x91/ñ/g;
+        $t =~ s/\xe2\x96\x8c/ñ/g;
+        $t =~ s/\xef\x83\xb1/ñ/g;
+    }
+
+    # Dos caracteres
+    $t =~ s/\xc3\x81/A/g;
+    $t =~ s/\xc3\x9a/U/g;
+    $t =~ s/\xc3\x9d/i/g;
+    $t =~ s/\xc3\xa1/a/g;
+    $t =~ s/\xc3\xa1/a/g;
+    $t =~ s/\xc3\xa9/e/g;
+    $t =~ s/\xc3\xad/i/g;
+    $t =~ s/\xc3\xb3/o/g;
+    $t =~ s/\xc3\xba/u/g;
+    $t =~ s/\xc2\xbd//g;
+    $t =~ s/\xc3\x5f/ç/g;
+    $t =~ s/-\xad/-/g;
+    $t =~ s/_\xad/-/g;
+    $t =~ s/-\xa8/-/g;    # dieresis
+    $t =~ s/_\xa8/_/g;    # dieresis
+    $t =~ s/\x04\x32/o/g;
+    $t =~ s/\x41\x9d/i/g;
+    $t =~ s/\x4e\x80/O/g;
+    $t =~ s/\x4e\x8d/i/g;
+    $t =~ s/\xc2\xa6/i/g;
+    $t =~ s/\xc2\xb4/_/g;
+    $t =~ s/\xc2\xbe/o/g;
+    $t =~ s/\xc3\x81/A/g;
+    $t =~ s/\xc3\x89/E/g;
+    $t =~ s/\xc3\x8d/I/g;
+    $t =~ s/\xc3\x93/O/g;
+    $t =~ s/\xc3\x99/e/g;
+    $t =~ s/\xc3\x9a/U/g;
+    $t =~ s/\xc3\x9c/u/g;
+    $t =~ s/\xc3\x9f/a/g;
+    $t =~ s/\xc3\xa1/a/g;
+    $t =~ s/\xc3\xa4/a/g;
+    $t =~ s/\xc3\xa8/e/g;
+    $t =~ s/\xc3\xa9/e/g;
+    $t =~ s/\xc3\xab/e/g;
+    $t =~ s/\xc3\xac/i/g;
+    $t =~ s/\xc3\xad/i/g;
+    $t =~ s/\xc3\xaf/i/g;
+    $t =~ s/\xc3\xb2/o/g;
+    $t =~ s/\xc3\xb3/o/g;
+    $t =~ s/\xc3\xb6/o/g;
+    $t =~ s/\xc3\xb9/u/g;
+    $t =~ s/\xc3\xba/u/g;
+    $t =~ s/\xc3\xbc/u/g;
+    $t =~ s/\xd0\x91/u/g;
+    $t =~ s/\xd0\x92/e/g;
+    $t =~ s/\xd0\x95/o/g;
+    $t =~ s/\xd0\x97/c/g;
+    $t =~ s/\xd0\xa0/E/g;
+    $t =~ s/\xd0\xa5/o/g;
+    $t =~ s/\xd0\xb0/a/g;
+    $t =~ s/\xd0\xb1/i/g;
+    $t =~ s/\xd0\xb2/o/g;
+    $t =~ s/\xd0\xb3/u/g;
+    $t =~ s/\xd0\xb8/_/g;
+    $t =~ s/\xd1\x94/o/g;
+    if ($force_n) {
+        $t =~ s/\x04\x34/n/g;
+        $t =~ s/\x41\xb1/n/g;
+        $t =~ s/\x4e\x91/n/g;
+        $t =~ s/\xc2\xb1/n/g;
+        $t =~ s/\xc3\x91/N/g;
+        $t =~ s/\xc3\x91/N/g;
+        $t =~ s/\xc3\xb1/n/g;
+        $t =~ s/\xc3\xb1/n/g;
+        $t =~ s/\xd0\x41/N/g;
+        $t =~ s/\xd0\x65/N/g;
+        $t =~ s/\xd0\xb4/n/g;
+        $t =~ s/\xd0\xb5/N/g;
+        $t =~ s/\xd0\xbd/n/g;
+    } else {
+        $t =~ s/\x04\x34/ñ/g;
+        $t =~ s/\x41\xb1/ñ/g;
+        $t =~ s/\x4e\x91/ñ/g;
+        $t =~ s/\xc2\xb1/ñ/g;
+        $t =~ s/\xc3\x91/Ñ/g;
+        $t =~ s/\xc3\x91/Ñ/g;
+        $t =~ s/\xc3\xb1/ñ/g;
+        $t =~ s/\xc3\xb1/ñ/g;
+        $t =~ s/\xd0\x41/Ñ/g;
+        $t =~ s/\xd0\x65/Ñ/g;
+        $t =~ s/\xd0\xb4/ñ/g;
+        $t =~ s/\xd0\xb5/Ñ/g;
+        $t =~ s/\xd0\xbd/ñ/g;
+    }
+
+    # Un caracter
+    $t =~ s/\x60/_/g;
+    $t =~ s/\x7e/_/g;
+    $t =~ s/\x82/e/g;
+    $t =~ s/\x84/a/g;
+    $t =~ s/\x87/ç/g;
+    $t =~ s/\x89/e/g;
+    $t =~ s/\x8a/e/g;
+    $t =~ s/\x8b/i/g;
+    $t =~ s/\x8d/i/g;
+    $t =~ s/\x90/E/g;
+    $t =~ s/\x94/o/g;
+    $t =~ s/\x99/O/g;
+    $t =~ s/\x9b/o/g;
+    $t =~ s/\xa0/a/g;
+    $t =~ s/\xa1/i/g;
+    $t =~ s/\xa1/i/g;
+    $t =~ s/\xa2/o/g;
+    $t =~ s/\xa3/u/g;
+    $t =~ s/\xa6/a/g;
+    $t =~ s/\xa7/_/g;
+    $t =~ s/\xaa//g;
+    $t =~ s/\xb5/a/g;
+    $t =~ s/\xba//g;
+    $t =~ s/\xc9/E/g;
+    $t =~ s/\xcd/I/g;
+    $t =~ s/\xd3/O/g;
+    $t =~ s/\xd6/I/g;
+    $t =~ s/\xda/U/g;
+    $t =~ s/\xdd/A/g;
+    $t =~ s/\xe0/O/g;    # O con acento frances
+    $t =~ s/\xe1/a/g;
+    $t =~ s/\xe3/A/g;
+    $t =~ s/\xe9/e/g;
+    $t =~ s/\xed/i/g;
+    $t =~ s/\xef/_/g;
+    $t =~ s/\xf3/o/g;
+    $t =~ s/\xf6/o/g;
+    $t =~ s/\xf8/_/g;
+    $t =~ s/\xfa/u/g;
+    if ($force_n) {
+        $t =~ s/\x81/n/g;
+        $t =~ s/\xa4/n/g;
+        $t =~ s/\xa5/N/g;
+        $t =~ s/\xd1/N/g;
+        $t =~ s/\xf1/n/g;
+    } else {
+        $t =~ s/\x81/ñ/g;
+        $t =~ s/\xa4/ñ/g;
+        $t =~ s/\xa5/Ñ/g;
+        $t =~ s/\xd1/Ñ/g;
+        $t =~ s/\xf1/ñ/g;
+    }
+    return $t;
+}
+
+# }}}

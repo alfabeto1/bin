@@ -1,0 +1,176 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding UTF-8
+
+=head1 NAME
+
+B<archiva> - Empaqueta y guarda un fichero o directorio de trabajo
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item archiva [-h|--help|-u|-V|--version]
+
+=item archiva [-v] [-d] [-n] [-p] F<FILE|DIR>
+
+=back
+
+=head1 DESCRIPTION
+
+Se empaqueta con tar y gzip el fichero o directorio que se indique.
+Se copia el fichero comprimido al directorio F<~/Dropbox/Archive>. El fichero
+generado tiene fecha.
+
+Se pide un pequeño comentario. Este comentario se graba (o se añade) a
+un fichero de texto también en el directorio F<~/Dropbox/Archive>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-d>
+
+Borra el fichero o directorio tratado.
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-n>
+
+No se pide comentario para añadir al texto de comentarios.
+
+=item B<-p>
+
+Muestra comentarios previos.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante el proceso.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos, pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{
+# Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+my $HOME     = $ENV{HOME};
+my $HOSTNAME = $ENV{HOSTNAME};
+my $ARCHIVE  = "$HOME/Dropbox/Archive";
+if ($HOSTNAME eq 'EMGCPL101DES'){
+    $ARCHIVE = "$HOME/Archive";
+}
+
+# }}}
+# {{{ Variables
+my $DATE = `date +%Y%m%d`;
+my $TIME = `date +%T`;
+chomp $DATE;
+chomp $TIME;
+my %opt;
+my $d;
+my $file;
+my $es_dir=0;
+
+# }}}
+# {{{
+# Parametros
+getopts( 'dhnpuvV', \%opt ) or usage("Fallo parámetros");
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+usage("Falta directorio a archivar") unless @ARGV;
+$opt{v} = ' -v' if $opt{v};
+$d = shift;
+$d =~ s/\/$//;
+if ( $d =~ /Archive/ or
+     !-e $d ) {
+    usage("<$d> no es valido. Debe existir y no ser Archive.");
+}
+$es_dir= -d $d?1:0;
+$d =~ s/ /\\ /g;
+$file = "$d-$DATE";
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Pedimos y/o mostramos comentario
+if ( $opt{p} ) {
+    if ( open FILE, "$ARCHIVE/$d.txt" ) {
+        print while (<FILE>);
+        close FILE;
+    }
+}
+if ( !$opt{n} ) {
+    print "Teclea el comentario:\n";
+    my $t = "### $DATE $TIME\n";
+    while (<>) {
+        $t .= $_;
+    }
+    $t .= '-' x 80;
+    $t .= "\n";
+    exit unless $t;
+    open FILE, ">>$ARCHIVE/$d.txt" or die "$ARCHIVE/$d.txt. $!";
+    print FILE $t;
+    close FILE;
+}
+
+# }}}
+# {{{ Proceso. Creamos fichero comprimido
+my $result=1;
+if ($es_dir){
+    print "creando fichero $file.tgz\n" if $opt{v};
+    system "tar $opt{v} -czf $file.tgz $d";
+    if ( -s "$file.tgz" ) {
+        $result = system "mv $file.tgz $ARCHIVE $opt{v}";
+    }
+} else {
+    print "creando fichero $file.gz\n" if $opt{v};
+    $result = system "gzip $opt{v} -c $d >$ARCHIVE/$file.gz";
+}
+if ( $opt{d} and $result == 0 ) {
+    print "borrando $d\n" if $opt{v};
+    system "rm -r $opt{v} $d";
+}
+exit 0;
+
+# }}}

@@ -1,0 +1,27 @@
+#!/usr/bin/perl
+### Ordena folds de vim, con el marcador estándar
+# Permite seleccionar los que cumplan una regexpr y ponerlos al principio
+$putfirst = shift || '';
+print "#------------- $putfirst ------------------------------\n" if $putfirst;
+while (<>){
+    $k .= $_;
+    if (/^. }}}/){
+        if ($putfirst and $k =~/$putfirst/i){
+            print $k;
+        } else {
+            $t{$k}=1;
+        }
+        $k='';
+    }
+}
+print "#-------------------------------------------\n" if $putfirst;
+$t{$k}=1 if $k;
+foreach (sort {c ($a) cmp c($b)} keys %t){
+    print;
+}
+sub c {
+    my $t=shift||'';
+    $t=lc($t);
+    $t=~ s/\W//gm;
+    return $t;
+}

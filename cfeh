@@ -1,0 +1,252 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<cfeh> - Usa F<feh> para separar en directorios las imagenes del dir actual
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item cfeh -b
+
+=item cfeh [-h|--help|-u|-V|--version]
+
+=item cfeh [-d DIR] [-s] [-v] [-t] [-i NUM] [FILES|DIRS]
+
+=back
+
+=head1 DESCRIPTION
+
+Forma y ejecuta un comando que permite visualizar con F<feh> las
+imagenes existentes en el directorio actual, y con una tecla enviarlas a
+una de los directorios que cuelgan del mismo.
+
+Se genera un fichero F<Actions> que ejecutándolo realiza las acciones
+marcadas. Se hace de esta manera para poder corregir errores antes de
+ejcutar.
+
+Los directorios de destino son asignados a las teclas 1,2...9
+
+Además se pueden borrar imagenes con B<Ctrl-Del>. El borrado es
+inmediato.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-b>
+
+Back. Revisa directrio y mueve al directorio superior con F<ENTER>.
+
+=item B<-d DIR> (existing dirctory name)
+
+Directorio de destino.
+
+DEFAULT: '/pub1/Wallpapers'
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-i NUM> (integer)
+
+Ignora los primeros F<NUM> directorios destino.
+
+DEFAULT: 0
+
+=item B<-p>
+
+Selección preferida de directorios. Los más usados.
+
+=item B<-s>
+
+Segunda selección preferida de directorios.
+
+=item B<-t>
+
+Test mode. No ejecuta, solo muestra el comando generado.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 FILES
+
+=over
+
+=item F<Actions>
+
+Se genera este fichero, que es un script de B<shell>. Dentro están los
+comandos para realizar todos los movimientos de imagenes.
+
+El último comando de F<Actions> es borrarse a sí mismo.
+
+=back
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2015 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Pragmas y modulos
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+my $MAXFILES = 100; # Max number of images to process
+
+# }}}
+# {{{ Variables
+my %opt;
+my @dirs;
+my @files;
+my $command = "feh -q --info 'identify %f|f 3' -Z --scale-down -d -g 1200x675 --on-last-slide quit ";
+my $i       = 0;
+my $dest    = '/pub1/Wallpapers';
+
+# }}}
+# {{{ Parametros
+getopts( 'bd:hi:pstuvV', \%opt ) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+
+if ($opt{s} and $opt{p}){
+    usage("Opciones incompatibles");
+}
+if ($opt{i}){
+    usage("-i debe ser un numero") unless $opt{i} =~ /^\d+$/;
+}
+if ($opt{d}){
+    $dest = $opt{d};
+    $dest =~  s/\/$//;
+    die unless -d $dest;
+}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Mover al directorio superior
+if ($opt{b}){
+    # Proceso de revisión del contenido de un directorio. al dar enter se mueve
+    # la imagen al directorio superior.
+    system "$command --action 'mv -vn %f ..';ls -l|wc -l";
+    exit 0;
+}
+# Obtenemos lista de directorios destino
+if ($opt{p}){
+    @dirs = qw/
+        Animals    Anime-Game Cities     Film-Music Mix        Motor
+        Naturaleza Planes     Turismo
+     /;
+     foreach my $i (0 .. $#dirs){
+        $dirs[$i] = "$dest/$dirs[$i]";
+     }
+ } elsif ($opt{s}){
+    @dirs = qw/
+         Cabin-Camp Christmas Countries Deportes  Mix Ships Naturaleza Space Tecno 
+     /;
+     foreach my $i (0 .. $#dirs){
+        $dirs[$i] = "$dest/$dirs[$i]";
+     }
+} else {
+    # @dirs  = sort grep { /\/.../ and /\/[A-Z]/ and -d } glob("$dest/*");
+    @dirs  = sort grep { -d } glob("$dest/*");
+    if ($opt{i}){
+        shift @dirs while $opt{i}--;
+    }
+    if (!@dirs){
+        die "No hay directorios de destino\n";
+    }
+}
+$#dirs = 8 if $#dirs >8;
+# }}}
+# {{{
+# Formamos el comando de visualizacion
+# Primero las acciones de mover a cada directorio
+$command.= sprintf "-A  \"echo rm \\-v  %s  >>Actions\" ",  '%f';
+foreach my $i (0 .. $#dirs){
+    $command.= " \\\n--action";
+    $command.= sprintf "%d \"echo mv \\-vn  %s %s/ >>Actions\" ", $i+1, '%f', $dirs[$i];;
+    printf "Tecla   %d --> %s\n", $i+1, $dirs[$i];
+}
+$command.= " \\\n";
+
+## TODO: Permitir una relacion de ficheros a procesar.
+
+# }}}
+# {{{
+# Despues la lista de ficheros a procesar.
+if (@ARGV){
+    @files  = @ARGV;
+    $#files = $MAXFILES-1 if $#files >= $MAXFILES;
+} else {
+    opendir DIR,"." or die;
+    while ($_=readdir(DIR)){
+        next unless -f;
+        next unless -s;
+        next unless /(jpe?g|png)$/i;
+        next if /cache/;
+        push @files, $_;
+        $i++;
+        last if $i==$MAXFILES;
+    }
+    closedir DIR;
+}
+$command .= join " \\\n",@files;
+
+# }}}
+# {{{
+# Ejecutamos
+if ($opt{t}){
+    print $command."\n";
+} else {
+    print $command."\n" if $opt{v};
+    system $command;
+    if (-s 'Actions'){
+        system "echo 'rm -v Actions' >>Actions";
+        system "chmod +x Actions";
+        system "vim Actions;Actions";
+        system "dir -1|wc -l";
+    }
+}
+exit 0;
+
+# }}}

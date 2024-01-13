@@ -1,0 +1,257 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<md5ldif> - Encuentra duplicados en el fichero .md5sums
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item md5ldif [-h|--help|-u|-V|--version]
+
+=item md5ldif [-e] [-s] [-v] DIR1 DIR2
+
+=back
+
+=head1 DESCRIPTION
+
+Muestra las diferencias entre los ficheros F<.md5sums> de dos
+directorios. Identificación de diferencias.
+
+Con la opción F<-s> se realizan los cambios necesarios para que F<dir2>
+sea igual que F<dir1>.
+
+=over 4
+
+=item * F<!> El fichero existe en ambos directorios, pero es diferente.
+Accion: Copiar de dir1 a dir2.
+
+=item * F<E<gt>> El fichero sólo existe en el directorio 1. Accion: Copiar de
+dir1 a dir2.
+
+=item * F<D> Borrado en directorio 1. Accion: Borrar de dir2.
+
+=item * F<T> Diferente timestamp. Accion: Cambiar fecha en dir2, para igualar
+con dir1.
+
+=back
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-e>
+
+Ejecutar. Hacer los cambios para igualar.
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-s>
+
+Reescaneamos los .md5sums, ejecutando md5lu.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 FILES
+
+El comando espera encontrar un fichero llamado F<.md5sums>, en cada
+directorio a comparar. Este fichero debe ser creado previamente con el
+comando C<md5lu>.
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use Getopt::Std;
+use CommonFunc qw/:all/;
+
+# }}}
+# {{{ Constantes (o casi)
+my $HOME=$ENV{HOME};
+our $VERSION = substr q$Revision: 3.1 $, 10;
+my $FILE  = '.md5sums';
+
+# }}}
+# {{{ Variables
+my %list1=qw//;
+my %list2=qw//;
+my %names;
+my %dirs1=qw//;
+my %dirs2=qw//;
+my %opt;
+my $dir1;
+my $dir2;
+
+# }}}
+# {{{ Parametros
+getopts( 'ehsuvV', \%opt ) or usage("Fallo parámetros");
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+$dir1 = shift;
+$dir2 = shift;
+$dir1=~  s/\/$//;
+$dir2=~  s/\/$//;
+usage('Faltan directorios de entrada') unless $dir1 and $dir2;
+usage("$dir1 no es directorio") unless -d $dir1;
+usage("$dir2 no es directorio") unless -d $dir2;
+usage("No existe $dir1/$FILE") unless -f "$dir1/$FILE";
+usage("No existe $dir2/$FILE") unless -f "$dir2/$FILE";
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Recreate md5sums files if option -s
+if ($opt{s}){
+    print "Ejecutando md5lu\n" if $opt{v};
+    system "$HOME/bin/md5lu \"$dir1\" \"$dir2\"";
+}
+
+# }}}
+# {{{ Read file 1
+print "Leyendo $dir1/$FILE\n" if $opt{v};
+open FILE,"$dir1/$FILE" or die $!;
+while (<FILE>) {
+    chop;
+    my ( $md5, $size,$mtime,$name ) = split /;/, $_, 4;
+    $list1{$name} = "$md5;$size;$mtime";
+    my $d=$name;
+    $d=~ s/[^\/]+$//;
+    $dirs1{$d}=1 if ($d);
+}
+close FILE;
+
+# }}}
+# {{{ Read file 2
+print "Leyendo $dir2/$FILE\n" if $opt{v};
+open FILE,"$dir2/$FILE" or die $!;
+while (<FILE>) {
+    chop;
+    my ( $md5, $size,$mtime,$name ) = split /;/, $_, 4;
+    my $d=$name;
+    $d=~ s/[^\/]+$//;
+    $dirs2{$d}=1 if ($d);
+    if (defined $list1{$name}){
+        if ($list1{$name} eq "$md5;$size;$mtime"){
+            delete $list1{$name}; # Exists and equal. Discard.
+            next;
+        }
+    }
+    $list2{$name} = "$md5;$size;$mtime";
+}
+close FILE;
+
+# }}}
+# {{{ Create new dirs
+foreach my $d(sort keys %dirs1){
+    my $newdir= "$dir2/$d";
+    if (!-d $newdir){
+        print "> DIR $d\n" if $opt{v};
+        system "mkdir -p \"$newdir\"" if $opt{e};
+    }
+}
+
+# }}}
+# {{{ Showing differences.
+#--------------------------------------------------------------+
+# Equals has been discarded.                                   |
+# Execute changes to from 1 to 2 if option -e                  |
+#--------------------------------------------------------------+
+%names = map { $_, 1 } keys %list1,keys %list2;
+foreach my $k(sort keys %names){
+    if (defined $list1{$k}){
+        if (defined $list2{$k}){
+            my ($m1,$s1,$t1)=split /;/,$list1{$k};
+            my ($m2,$s2,$t2)=split /;/,$list2{$k};
+            if ($m1 eq $m2 and $s1 eq $s2){
+                print "T $k\n" if $opt{v};
+                if ($opt{e}){
+                    system "touch -r \"$dir1/$k\" \"$dir2/$k\"";
+                }
+            } else {
+                print "! $k\n" if $opt{v};
+                if ($opt{e}){
+                    system "   cp -pv \"$dir1/$k\" \"$dir2/$k\"\n";
+                }
+            }
+        } else {
+            print "> $k\n" if $opt{v};
+            if ($opt{e}){
+                system "   cp -pv \"$dir1/$k\" \"$dir2/$k\"\n";
+            }
+        }
+    } else {
+        print "D $k\n" if $opt{v};
+        if ($opt{e}){
+            system "   rm -vf \"$dir2/$k\"";
+        }
+    }
+}
+
+# }}}
+# {{{ Delete in 2 dirs not existing in 1
+foreach my $d(reverse sort keys %dirs2){
+    if (!defined ($dirs1{$d})){
+        print "D DIR $d\n" if $opt{v};
+        system "rm -rf  \"$dir2/$d\"" if $opt{e};
+    }
+}
+
+# }}}
+# {{{ Copy .md5sums
+if ($opt{e}){
+    print "Copiamos .md5sums\n" if $opt{v};
+    system "cp  -pv \"$dir1/$FILE\" \"$dir2/$FILE\"";
+}
+exit;
+
+# }}}

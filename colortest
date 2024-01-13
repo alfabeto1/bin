@@ -1,0 +1,95 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<colortest> - Muestra los colores posibles del terminal
+
+=head1 DESCRIPTION
+
+Muestra los colores posibles del terminal
+
+=head1 OPTIONS
+
+No options.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{
+use strict;
+my $color;
+my $initial;
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Font decoration
+print "Font decoration\n";
+print "   \e[0mThis is normal\e[0m";
+print "   \e[1mThis is bold\e[0m";
+print "   \e[4mThis is underlined\e[0m";
+print "   \e[7mThis is reverse\e[0m\n";
+# }}}
+# {{{
+# Main palette
+print "Main palette\n";
+for $color (0 .. 15) {
+    printf "\x1b[48;5;${color}m     ";
+}
+print "\x1b[0m\n";
+for $color (0 .. 15) {
+    printf "\x1b[38;05;%dm %03d ", $color, $color;
+}
+print "\x1b[0m\n";
+# }}}
+# {{{
+# More colors
+print "More colors:\n";
+for $initial (qw/16 52 88 124 160 196 34 70 106 142 178 214/){
+    for $color ($initial .. ($initial + 17)) {
+        printf "\x1b[48;5;${color}m     ";
+    }
+    print "\x1b[0m\n";
+    for $color ($initial .. ($initial + 17)) {
+        printf "\x1b[38;05;%dm %03d ", $color, $color;
+    }
+    print "\x1b[0m\n";
+}
+# }}}
+# {{{
+# Gray palette
+print "Gray palette\n";
+for $color (232 .. 255) {
+    printf "\x1b[48;5;${color}m     ";
+}
+print "\x1b[0m\n";
+for $color (232 .. 255) {
+    printf "\x1b[38;05;%dm %03d ", $color, $color;
+}
+print "\x1b[0m\n";
+# }}}
+exit;

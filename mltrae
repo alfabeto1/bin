@@ -1,0 +1,155 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+B<mltrae> - Mueve todo lo descargado por mldonkey a directorios incoming
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item mltrae [-h|-u|-V]
+
+=item mltrae [-v]
+
+=back
+
+=head1 DESCRIPTION
+
+Mueve todo lo descargado por mldonkey a directorios incoming
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{ usage
+function usage {
+    if test "$*"; then
+        echo $*
+    fi
+    pod2usage -verbose 1 $0
+    exit 1
+}
+
+# }}}
+# {{{ help
+function help {
+    pod2text -c $0
+    exit 1
+}
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Variables
+VERSION="$Revision: 3.1 $"
+VERSION=${VERSION#:\ }
+VERSION=${VERSION%\ \$}
+DIR1="/pub/mldonkey/incoming/files"
+DIR2="/pub/mldonkey/incoming/directories"
+DEST="/pub/incoming";
+AUDIO="/pub/Audio/Musica/incoming"
+
+# }}}
+# {{{ Parametros
+while getopts uvhV options; do
+    case "$options" in
+        h) help ;;
+        u) usage ;;
+        v) verbose=on ;;
+        V) echo "${0/*\//} - $VERSION";exit 1;;
+       \?) usage "Fallo parámetros" ; exit 1 ;;
+    esac
+done
+shift $(( $OPTIND - 1 ))
+test $verbose && echo ARGUMENTOS: $*
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Comprobamos que estamos en la maquina correcta
+if [ ! -d /pub/mldonkey ]; then
+    echo Fail. No mldonkey here.
+    exit 1
+fi
+# }}}
+# {{{
+# Movemos los ficheros, renombramos y organizamos
+cd $DEST
+if [ "$(ls -A $DIR1/* 2>/dev/null)" -o  "$(ls -A $DIR2/* 2>/dev/null)" ]; then
+    echo Moviendo a $DEST
+    ls -l $DIR1 $DIR2
+    sudo chown luis:luis -R $DIR1/* $DIR2/* 2>/dev/null
+    sudo mv -v $DIR1/* $DIR2/* $DEST  2>/dev/null
+    count=`ls -1 $DEST/*.mp3  2>/dev/null | wc -l`
+    detox $DEST/*
+    names $DEST/*
+    if [ $count != 0 ]; then
+        echo Moviendo Musica a $AUDIO
+        chmod 666 $DEST/*.mp3
+        mv -v $DEST/*.mp3 $AUDIO/
+    fi
+else
+    echo "No new files"
+fi
+~/bin/separa
+exit 0
+
+# }}}

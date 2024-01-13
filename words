@@ -1,0 +1,7 @@
+#!/usr/bin/perl
+### Output every word in a single line
+undef $/;
+$_=<>;
+s/^\s+//;
+s/\s+/\n/g;
+print;

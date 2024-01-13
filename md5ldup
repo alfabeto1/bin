@@ -1,0 +1,176 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<md5ldup> - Encuentra duplicados en el fichero .md5sums
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item md5ldup [-h|--help|-u|-V|--version]
+
+=item md5ldup [-v] [-d] [-f]
+
+=back
+
+=head1 DESCRIPTION
+
+Se localizan los fichero duplicados a partir de sus claves MD5
+almacenadas en el fichero F<.md5sums>.
+
+Con las opciones C<-d> y C<-f> se eliminan los duplicados.
+
+El fichero F<.md5sums> no se acualiza. Se debe ejecutar el comando
+C<md5ldu> para hacerlo.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-d>
+
+Delete. Borra los ficheros duplicados preguntando al usuario cual de
+ellos se elimina.
+
+=item B<-f>
+
+Force. Borra los ficheros duplicados. Se borra el que tiene el nombre
+más corto.
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 FILES
+
+El comando espera encontrar un fichero llamado F<.md5sums>, en el
+directorio en curso. Este fichero debe ser creado previamente con el
+comando C<md5lu>.
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my $FILE  = '.md5sums';
+my %lista = qw//;
+my %opt;
+
+# }}}
+# {{{ Parametros
+getopts( 'dfhuvV', \%opt ) or usage("Fallo parámetros");
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+$opt{d} = 1 if $opt{f};
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# FIXME:
+# Al comparar dos ficheros debe comparar también mtime y size,
+# no solo md5.
+open FILE, $FILE or die $!;
+while (<FILE>) {
+    chop;
+    my ($md5, $size, $mtime, $name) = split /;/, $_, 4;
+    next if $name =~ /Selección\//;
+    if ( defined $lista{$md5} ) {
+        if ( $name =~ /(incoming|\/Mix\/)/ or $name =~ /pic\.php/ ) {
+            print "Borrando $name ==> $lista{$md5}\n";
+            unlink $name if $opt{d};
+        } elsif ( $lista{$md5} =~ /(incoming|\/Mix\/)/ or
+                  $lista{$md5} =~ /pic\.php/ ) {
+            print "Borrando $lista{$md5}\n";
+            unlink $lista{$md5} if $opt{d};
+            $lista{$md5} = $name;
+        } else {
+            if ( $opt{f} ) {
+                my $l = $lista{$md5};
+                if ( length($name) < length($l) ) {
+                    $l = $name;
+                }
+                print "Borrando $l\n";
+                unlink $l if $opt{d};
+            } else {
+                print "Duplicado 1: $name\n";
+                print "          2: $lista{$md5}\n";
+                if ( $opt{d} ) {
+                    print "Borrar (1/2)?";
+                    my $v = <>;
+                    if ( $v =~ /^1/ ) {
+                        unlink $name;
+                    } elsif ( $v =~ /2/ ) {
+                        unlink $lista{$md5};
+                        $lista{$md5}=$name;
+                    }
+                    print "\n";
+                }
+            }
+        }
+    } else {
+        $lista{$md5} = $name;
+    }
+}
+close FILE;
+exit;
+
+# }}}

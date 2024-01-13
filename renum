@@ -1,0 +1,15 @@
+#!/usr/bin/perl
+### Renumera una lista numerada de markdown
+#==============================================================================#
+#  Numero + punto. El resto permanece.                                         #
+#  Si alguna linea no contiene numero se reinicia el contador.                                     #
+#==============================================================================#
+$num='01';
+while (<>){
+    if (s/^( *)\d+\./$1$num./){
+        $num++;
+    } else {
+        $num='01' unless length($_);
+    }
+    print;
+}

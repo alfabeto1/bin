@@ -1,0 +1,64 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<buthead> - Emite en la salida estandar todo menos las primeras x lineas.
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<buthead> [NUM] F<FILE>
+
+=item B<buthead> [NUM] E<lt> F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Emite en la salida estandar todo menos las primeras x lineas. Por defecto 10
+líneas, si no se indica nada.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+our $VERSION = substr q$Revision: 3.1 $, 10;
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+$but=10;
+if (@ARGV){
+    if (! -f $ARGV[0]){
+        $but = shift;
+    }
+}
+while (<>){
+    $n++;
+    if ($n>$but){
+        print;
+    }
+}

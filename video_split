@@ -1,0 +1,9 @@
+#!/usr/bin/bash
+### Divide un fichero de video en 2
+
+filein=$1
+fileout1=${filein/\./-1.}
+fileout2=${filein/\./-2.}
+
+ffmpeg -y -i $filein -t  00:50:00 -c:v copy -c:a copy -c:s copy $fileout1
+ffmpeg -y -i $filein -ss 00:50:00 -c:v copy -c:a copy -c:s copy $fileout2

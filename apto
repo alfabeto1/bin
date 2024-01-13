@@ -1,0 +1,578 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<apto> - Wrapper para apt-get, dpkg, aptitude, apt-cache y otros
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item apto [-c|-h|--help|-u|-V|--version]
+
+=item apto [-v] [-t] COMMAND [OPTIONS]
+
+=back
+
+=head1 DESCRIPTION
+
+B<apto> ejecuta múltiples comandos de gestión de paquetes de una manera
+un poco más sencilla. Múltiples comandos de gestión de paquetes, a veces
+con largas opciones opciones se reducen a único comando con órdenes más
+cortas.
+
+Se ejcuta con C<sudo> cuando sea necesario.
+
+Esta basado en la utilidad B<apt> que viene con Mint.
+
+=head1 ARGUMENTS
+
+Los comandos válidos dependen del sistema actual. De forma general:
+
+ autoclean(ac) autoremove(ar)
+ build build-dep
+ changelog check clean conf
+ deb depends(dep) detail(de) dist-upgrade(du) ddu download(do) dselect-upgrade
+ held help hold
+ fin
+ install(in)
+ lista(la)
+ owner(ow)
+ policy purge(pu)
+ rpm rdepends reinstall remove(re)
+ search(se) simulate(si) show(sh) sources(so) sizes(sz)
+ unhold update(up) upgrade
+ version
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-c>
+
+Muestra los comandos disponibles en el sistema actual.
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-t>
+
+Test run. No ejecuta.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 COMMANDS
+
+  autoclean,ac    : Erase old downloaded archive files.
+  autoremove,ar   : Remove automatically all unused packages
+  build           : Build binary or source packages from sources
+  build-dep       : Configure build-dependencies for source packages
+  changelog       : SHOW a package's changelog
+  check           : Verify that there are no broken dependencies
+  clean           : Erase downloaded archive files
+  conf            : Config (if possible) badly installed packages.
+  ddu             : Download packages for dist-upgrade but not install
+  depends,dep     : SHOW raw dependency information for a package
+  detail,de       : LIST files contained in a package
+  dist-upgrade,du : Perform an upgrade, possibly installing and
+                    removing packages.
+  download,do     : Download the .deb file for a package
+  dselect-upgrade : Follow dselect selections
+  fin             : Force install problematic packages.
+  held            : LIST all held packages
+  help            : SHOW help or a command
+  hold            : Hold a package
+  install,in      : Install/upgrade packages from repository with apt-get.
+                    If it's a deb file then call dpkg.
+  linstall,lin    : Install a local package
+  lista,la        : LIST packages in dpkg database
+  owner,ow        : LIST packages containing a file
+  policy          : SHOW policy settings
+  purge,pu        : Remove packages and their configuration files
+  purgeall,pua    : Purgue conf files of uninstalled packages
+  rdepends        : SHOW reverse dependency information for a package
+  reinstall,ri    : Download and (possibly) reinstall a currently
+                    installed package
+  remove,re       : Remove packages
+  search,se       : Search for a package by name and/or expression
+  show,sh         : SHOW detailed information about a package
+  simulate,si     : Simulate a dist-upgrade
+  sizes,sz        : Show sizes of installed packages
+  sources,so      : Edit /etc/apt/sources.LIST with vim
+  unhold          : Unhold a package
+  update,up       : Download LISTs of new/upgradable packages
+  upgrade         : Perform a safe upgrade
+  version         : SHOW the installed version of a package
+
+=head1 EXAMPLES
+
+=over 4
+
+=item apto in firefox chromium
+
+Equivalente a C<sudo apt-get install firefox chromium>
+
+=item apto se java
+
+Equivalente a C<apt-cache search java |sort | h java>
+
+=item apto ddu
+
+Equivalente a C<sudo apt-get -dy dist-upgrade>
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 MORE HELP
+
+=head2 Error 1
+
+Los paquetes tienen archivos que se sobrescriben. Los paquetes tienen
+dependencias sin resolver. Hay conflictos entre los paquetes. Un paquete no
+puede ser eliminado o modificado por dpkg.
+
+Solución:
+
+    sudo echo "force-all" >/etc/dpkg/dpkg.cfg
+
+    sudo apt-get -f install
+
+=head2 Error 2
+
+Instalación de un paquete dañado, volvemos a intentar instalar y aptitude dice
+que ya está instalado.
+
+Solución:
+
+    sudo apt-get remove paquete_dañado
+
+    sudo apt-get update
+
+    sudo apt-get clean
+
+    sudo apt-get --reinstall install paquete
+
+=head2 Error 3
+
+Error de verificación de las llaves públicas GPG(NO_PUBKEY)
+
+Solución:
+
+    sudo apt-get update
+
+Buscamos la clave pública que falta.
+
+    The following signatures couldn't be verified because the public key is
+    not available: NO_PUBKEY 010908312D230C5F
+
+    There is no public key available for the following key IDs:010908312D230C5F
+
+Ejecutamos
+
+    gpg --keyserver keyserver.ubuntu.com --recv 010908312D230C5F
+
+    gpg --export --armor 010908312D230C5F | sudo apt-key add -
+
+    sudo apt-get update
+
+=head2 Error 4
+
+El subproceso post-installation script devolvió el código de salida de
+error (cualquier error). Se encontraron errores al procesar: (nombre_paquete).
+
+Solución:
+
+Determinamos el nombre del paquete que causó el error, por ejemplo, en el
+registro de a continuación, se muestra en negrita el nombre del paquete que
+causó el problema (xosview)
+
+    newaliases: warning: valid_hostname: numeric hostname: 69522
+
+    newaliases: fatal: bad parameter value: 69522
+
+    dpkg: error processing xosview (configure):
+
+    subprocess post-installation script returned error exit status 75
+
+    Errors were encountered while processing: xosview
+
+Después de haber determinado el nombre del paquete, ejecutamos los
+siguientes comandos cambiando la palabra xosview por el nombre del
+paquete que causó el problema en nuestro caso:
+
+    sudo rm -f /var/lib/dpkg/info/xosview.post*
+
+    sudo rm -f /var/lib/dpkg/info/xosview.pre*
+
+    sudo apt-get -f install
+
+=head2 Error 5
+
+Error mientras se elimina un paquete.
+
+Solución:
+
+    sudo rm -f /var/lib/dpkg/info/paquete_defectuoso.post*
+
+    sudo rm -f /var/lib/dpkg/info/paquete_defectuoso.pre*
+
+    sudo apt-get remove paquete_defectuoso
+
+=head2 Error 6
+
+Error en /var/lib/dpkg/status.
+
+Solución:
+
+    sudo cp /var/lib/dpkg/status-old /var/lib/dpkg/status
+
+Si esto no soluciona el problema, ver Error 7.
+
+=head2 Error 7
+
+Persiste el problema anterior o problema con apt-get que contiene muchos
+repositorios o Error out of room.
+
+El problema puede parecerse a esto:
+
+    E: Dynamic MMap ran out of room
+
+Solución:
+
+Modificamos el tamaño de la caché en el fichero /etc/apt/apt.conf
+
+    Apt::Cache-Limit 8388604;
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2013 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Pragmas y modulos
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.3 $, 10;
+
+# }}}
+# {{{ Variables
+my $cmd        = '';
+my $only_help  = 0;
+my $os_command = '';
+my $sudo       = $> ? 'sudo' : ''; # O root o "sudar" :-)
+my $type       = 0;                # 0 --> Debian, 1 --> Suse, 2 --> Cygwin
+my %opt;
+my %os_command;
+my @commands   = qw//;
+
+# }}}
+# {{{ Parametros
+getopts( 'chtuvV', \%opt ) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+$cmd = shift;
+usage('Falta comando') unless $cmd or $opt{c};
+if ( $cmd eq 'help' ) {
+    $only_help = 1;
+    $cmd       = shift;
+}
+if ($ARGV[0] =~ /\.deb$/ and -f $ARGV[0]){
+    if ($cmd eq 'in' or $cmd eq 'install'){
+        $cmd = 'linstall';
+    }
+}
+my $options = join( ' ', @ARGV );
+
+# }}}
+# {{{
+# Identify current system (dpkg based, rpm based, cygwin)
+{
+    my $t=`uname -a`;
+    $t .= `cat /etc/*release* 2>/dev/null`;
+    if ($t =~ /Cygwin/i){
+        print "ES $&\n" if $opt{v};
+        $type=2;
+        push @commands,'apt-cyg';
+    } elsif ($t=~ /SUSE/){
+        print "ES $&\n" if $opt{v};
+        $type=1;
+        push @commands,'rpm', 'zypper';
+    } elsif ($t=~ /Amazon Linux/){
+        print "ES $&\n" if $opt{v};
+        $type=3;
+        push @commands,'rpm', 'yum';
+    } else {
+        print "Suponemos Debian o Ubuntu por defecto\n" if $opt{v};
+        $type=0;
+        push @commands,'vim','dpkg','dselect','apt-get','aptitude',
+                       'apt-cache','dpkg-buildpackage';
+    }
+}
+
+# {{{
+# Check all commands are available
+if ($opt{v}){
+    foreach (sort @commands){
+        system "which $_ 2>/dev/null >/dev/null";
+        if ($?){
+            warn "$_ not found\n";
+        }
+    }
+}
+# }}}
+# }}}
+# {{{ Read data for table-driven process
+foreach my $l (<DATA>) {
+    chomp $l;
+    next if $l      =~ /^ *#/;
+    next if $l      =~ /^ *$/;
+    my ( $n, $a, $b )  = split /\s+/, $l, 3;
+    next unless $n == $type;
+    $os_command{$a} = $b;
+}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Mostrar comandos y salir si se pide 
+if ($opt{c}){
+    print "Comandos válidos en este sistema:\n";
+    foreach my $k (sort keys %os_command){
+        $os_command{$k}=~ s/ +/ /g;
+        printf "  %-16s %s\n",  $k , $os_command{$k};
+    }
+    exit 1;
+}
+# }}}
+# {{{
+$cmd        = expand_command($cmd);
+$os_command = que_comando($cmd,$options);
+usage("Comando incorrecto o no valido en este sistema: $cmd") unless $os_command;
+if ($only_help) {
+    print "$os_command\n";
+} else {
+    print "Ejecutando $os_command\n" if $opt{v};
+    system $os_command unless $opt{t};
+}
+exit 0;
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub que_comando {
+    # Elaborar comando a ejecutar en base a la informacion de la tabla
+    my $argc       = shift              || return '';
+    my $argo       = shift              || '';
+    my $os_command = $os_command{$argc} || return '';
+    $os_command    =~ s/OO/$argo/g;
+    $os_command    =~ s/SS/$sudo/g;
+    $os_command    =~ s/HH/ \| h $options/;
+    $os_command    =~ s/  +/ /g;
+    $os_command    =~ s/^ //;
+    $os_command    =~ s/ $ //;
+    return $os_command;
+}
+
+# }}}
+# {{{
+sub expand_command {
+    my $cmd = shift || return '';
+    return 'autoclean'    if $cmd eq 'ac';
+    return 'autoremove'   if $cmd eq 'ar';
+    return 'depends'      if $cmd eq 'dep';
+    return 'detail'       if $cmd eq 'de';
+    return 'dist-upgrade' if $cmd eq 'du';
+    return 'download'     if $cmd eq 'do';
+    return 'install'      if $cmd eq 'in';
+    return 'linstall'     if $cmd eq 'lin';
+    return 'lista'        if $cmd eq 'la';
+    return 'owner'        if $cmd eq 'ow';
+    return 'purge'        if $cmd eq 'pu';
+    return 'purgeall'     if $cmd eq 'pua';
+    return 'reinstall'    if $cmd eq 'ri';
+    return 'remove'       if $cmd eq 're';
+    return 'search'       if $cmd eq 'se';
+    return 'show'         if $cmd eq 'sh';
+    return 'simulate'     if $cmd eq 'si';
+    return 'sizes'        if $cmd eq 'sz';
+    return 'sources'      if $cmd eq 'so';
+    return 'update'       if $cmd eq 'up';
+    return $cmd;
+}
+
+# }}}
+#==============================================================================#
+# DATA                                                                         #
+#==============================================================================#
+# {{{
+__DATA__
+0 autoclean         SS apt-get     autoclean OO
+3 autoclean         SS iyum        clean all
+
+# Limpieza de paquetes huerfanos
+0 autoremove        SS apt-get -y  autoremove;SS apt-get -y remove `deborphan`
+
+0 build-dep         SS apt-get     build-dep OO
+0 build             SS dpkg-buildpackage OO
+0 changelog            aptitude    changelog OO
+0 check             SS apt-get     check OO
+
+# Limpieza de ficheros descargados e instalados
+0 clean             SS apt-get     clean OO
+
+# Configurar los paquetes que hayan podido quedar a medias
+0 conf                 dpkg --configure -a
+
+# Descargar todos los paquetes necesarios para un dist-upgrade
+0 ddu               SS apt-get -dy dist-upgrade OO
+
+# Muestra los paquetes de los que depende uno dado
+0 depends              apt-cache depends OO HH
+2 depends              apt-cyg  rdepends OO HH
+
+# Show contents of an installed package
+0 detail               dpkg -L      OO
+1 detail               rpm -ql      OO
+2 detail               apt-cyg listfiles OO
+
+# Upgrade all installed packages, trying not to install more
+0 dist-upgrade      SS apt-get -y  dist-upgrade OO
+1 dist-upgrade      SS zypper  dist-upgrade OO
+
+# Download package and dependencies but not install 
+0 download             apt-cache depends OO|grep -v 'Conflicts:\|Replaces:'|awk '{print \$NF}'|sed -e 's/[<>]//g'|xargs SS aptitude download -r
+2 download             apt-cyg download OO
+
+# Install what is selected by dselect
+0 dselect-upgrade   SS apt-get -y  dselect-upgrade OO
+
+# Force install.
+0 fin               SS apt-get -f  install
+
+# Listar paquetes holdeados
+0 held                 dpkg --get-selections | grep hold
+
+# Holdear un paquete
+0 hold                 echo OO hold | SS dpkg --set-selections
+
+# Download and install a package 
+0 install           SS apt-get -y  install OO
+1 install           SS zypper  install OO
+2 install              apt-cyg install OO
+3 install           SS yum     install OO
+
+# Install a local package
+0 linstall          SS dpkg -i OO
+1 linstall          SS rpm  -i OO
+
+# Listar paquetes instalados
+0 lista                dpkg -l OO
+1 lista                if [ -z "OO" ] ; then rpm -qa ; else rpm -qa |grep OO ; fi
+2 lista                apt-cyg list
+3 lista                yum     list installed
+
+# Mostrar que paquete es el propietario de un fichero
+0 owner                dpkg -S          OO
+2 owner                apt-cyg search   OO
+3 owner                yum     provides OO
+
+0 policy               apt-cache policy OO HH
+
+# Purgar un paquete
+0 purge             SS apt-get remove --purge OO
+
+# Purge uninstalled packages
+0 purgeall          SS dpkg --list |grep "^rc" | cut -d " " -f 3 | xargs sudo dpkg --purge
+
+0 rdepends             apt-cache rdepends OO HH
+0 reinstall         SS apt-get --reinstall install OO
+
+# Desinstalar un paquete
+0 remove            SS apt-get -y  remove OO
+1 remove            SS zypper  remove     OO
+2 remove               apt-cyg remove     OO
+3 remove            SS yum     remove     OO
+
+# Buscar paquetes en el repositorio
+0 search               apt-cache search OO |sort HH
+1 search               zypper    search OO  HH
+2 search               apt-cyg   searchall OO
+3 search               yum       list      OO
+
+# Mostrar informacion de detalle de un paquete 
+0 show                 apt-cache show OO HH
+1 show                 zypper info OO
+2 show                 apt-cyg show OO
+3 show                 yum     info OO
+
+# Mostrar tamaño de los paquetes instalados
+0 sizes                dpkg-query -Wf '${db:Status-Status} ${Installed-Size}\t${Package}\n' | sed -ne 's/^installed //p'|sort -n
+
+# Simular una dist-upgrade
+0 simulate             apt-get -s dist-upgrade
+3 simulate             yum     check-update            
+
+# Editar sources.list
+0 sources           SS vim /etc/apt/sources.list
+
+0 stats                apt-cache stats OO
+
+# Desholdear un paquete
+0 unhold               echo OO install | SS dpkg --set-selections
+
+# Actualizar la lista de paquetes existentes en el repositorio
+0 update            SS apt-get update
+1 update            SS zypper refresh
+2 update               apt-cyg update
+
+0 upgrade           SS apt-get -y  upgrade OO
+0 version              /usr/lib/linuxmint/common/version.py OO HH
+# }}}

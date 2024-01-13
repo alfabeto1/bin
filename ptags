@@ -1,0 +1,71 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=head1 NAME
+
+ptags - creates tag files for perl
+
+=head1 SYNOPSIS
+
+B<ptags> B<--add> I<variables> F<Tags.pm> F<ptags>
+
+B<ptags> [B<-h>/B<--help>]
+
+=head1 DESCRIPTION
+
+This is a really short perl script that use the package Tags.pm (see L<Tags.pm>)
+to creates tag files for perl scripts and perl modules. It can output either
+TAGS files for emacs or tag files for vi.
+
+It records in the tag file definition of subroutines and, optionnaly,
+definitions of global variables. Tags are found with basic patterns. For
+example, for variables, it is the first occurence of C<$bla=> without
+indentation.
+
+=head1 SEE ALSO
+
+B<ptags --help> for a precise description of the options.
+
+L<Tags.pm>
+
+http://www.eleves.ens.fr:8080/home/nthiery/Tags/
+
+L<perl>
+
+=head1 AUTHOR
+
+Nicolas Thiery
+
+Nicolas.Thiery@ens.fr
+
+http://www.eleves.ens.fr:8080/home/nthiery/
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{
+#  Pragmas
+use English;
+use Tags;
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+$tagparser=new Tags ('perl',
+             {pattern=>q{^\s*sub\s+(?:\w+(?:\'|::))*(\w+)},
+              help=>'subroutines'},
+             {pattern=>q{^([\$\@\%][\w:]+)\s*=},
+              first=>1,
+              option=>'variables',
+              help=>'global variables'});
+
+$tagparser->parse_command_line(@ARGV);
+exit 0;
+
+# }}}

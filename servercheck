@@ -1,0 +1,346 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<servercheck> - Check filesystems, ram and cpu
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item servercheck [-h|--help|-u|--usage|-V|--version]
+
+=item servercheck [-d|--disks] [-v|--verbose] [-s|--safe] [-f|--full]
+
+=back
+
+=head1 DESCRIPTION
+
+Check filesystems for exhausted space or inodes. It uses command C<df>, with and
+without option B<-i>.
+
+Also check ram, swap and cpu used with commands C<free> and C<mpstat>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-d>, B<--disks>
+
+Limita el chequeo a los discos.
+
+=item B<-f>, B<--full>
+
+Muestra todos los valores, sin un límite inferior.
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>, B<--usage>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-s>, B<--safe>
+
+Ejecuta df con sin revisar los filesystems nfs, para evitar que se cuelgue cuando haya un nfs con
+problemas.
+
+=item B<-v>, B<--verbose>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al
+autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2016 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use Getopt::Long qw/:config no_ignore_case bundling/;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION    = substr q$Revision: 3.0 $, 10;
+my $DISKLIMIT   = 90;
+my $RAMLIMIT    = 90;
+my $CPULIMIT    = 80;
+my $SWAPLIMIT   = 20;
+my $ZOMBILIMIT  = 5;
+my $INODESLIMIT = 2_000_000;
+
+# }}}
+# {{{ Variables
+my ($opt_h, $opt_u, $opt_v, $opt_V); # Command line option
+my ($opt_f, $opt_d, $opt_s);         # Command line option
+my %opt;                      # Opciones de la linea de comando
+my $cmd;                      # Cada uno de los comandos de chequeo
+my $text='';                  # Aqui se acumulan las lineas con los checks
+my $zombies=0;                # Numero de zombies segun top
+my $host=`hostname`;          # Hostname de la maquina
+chomp $host;
+$host =~ s/\..*//;
+
+# }}}
+# {{{ Parametros
+Getopt::Long::Configure("bundling","no_ignore_case");
+GetOptions (
+            "d|disks"    => \$opt_d,
+            "f|full"     => \$opt_f,
+            "h|help"     => \$opt_h,
+            "u|usage"    => \$opt_u,
+            "s|safe"     => \$opt_s,
+            "v|verbose"  => \$opt_v,
+            "V|version"  => \$opt_V,
+            ) or usage('Fallo parámetros');
+
+help()    if $opt_h;
+usage()   if $opt_u;
+version() if $opt_V;
+$opt_f = 1 if $opt_v;
+if ($opt_f){
+    $DISKLIMIT = $RAMLIMIT = $SWAPLIMIT = $ZOMBILIMIT = $CPULIMIT  = -1;
+}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Inodes
+print "Checking Inodes\n" if $opt_v;
+$cmd = 'df ' . ($opt_s?' -x nfs ': '').' -Pi 2>/dev/null |';
+open FILE, $cmd or die $!;
+while (<FILE>){
+    next if /tmp_export/;
+    next if /rootfs/;
+    next if /Mounted/;
+    next if /Montado/;
+    chomp;
+    my @f = split /\s+/;
+    $f[4]=~ s/%//;
+    my $inodes_usados= ($f[2]/1_000_000);
+    next if ($f[4] <= $DISKLIMIT and $f[2] < $INODESLIMIT);
+    $text .=sprintf "%-12s %-7s %3d%% %6.1f M inodes usados %s\n",
+        $host, 'INODES', $f[4],$inodes_usados, $f[5];
+}
+close FILE;
+
+# }}}
+# {{{
+# Espacio
+print "Checking Espacio\n" if $opt_v;
+$cmd = 'df ' . ($opt_s?' -x nfs ': '').' -B1G -P 2>/dev/null |';
+open FILE, $cmd or die $!;
+while (<FILE>){
+    next if /tmp_export/;
+    next if /rootfs/;
+    next if /Mounted/;
+    next if /Montado/;
+    chomp;
+    my @f = split /\s+/;
+    $f[4]=~ s/%//;
+    next if ($f[4] <= $DISKLIMIT );
+    $text .=sprintf "%-12s %-7s %3d%% %6dGb %s\n",
+        $host, 'SPACE',$f[4],$f[1],$f[5];
+}
+close FILE;
+
+# }}}
+# {{{
+# RAM & SWAP
+if (!$opt_d){
+    print "Checking RAM & SWAP\n" if $opt_v;
+    $cmd = 'free|';
+    open FILE, $cmd or die $!;
+    while (<FILE>){
+        chomp;
+        my @f = split /\s+/;
+        if (/^(Mem|Memoria):/){
+            $f[0] =~ s/://;
+            if ($f[1] > 0){
+                my $p = $f[2]*100/$f[1];
+                if ($p > $RAMLIMIT){
+                    $text .=sprintf "%-12s %-7s %3d%% %6dMb\n",
+                        $host, $f[0],$p,$f[1]/1024;
+                }
+            } else {
+                $text .= sprintf "%-12s FAIL Checking %s\n", $host,$f[0];
+            }
+        }
+        # if (/^Swap:/){
+        #     $f[0] =~ s/://;
+        #     if ($f[1] > 0){
+        #         my $p = $f[2]*100/$f[1];
+        #         if ($p > $SWAPLIMIT){
+        #             $text .=sprintf "%-12s %-7s %3d%% %6dMb\n",
+        #                 $host, $f[0],$p,$f[1]/1024;
+        #         }
+        #     } else {
+        #         $text .= sprintf "%-12s FAIL Checking %s\n", $host,$f[0];
+        #     }
+        # }
+    }
+    close FILE;
+}
+
+# }}}
+# {{{
+# Zombies
+if (!$opt_d){
+    print "Checking Zombies\n" if $opt_v;
+    $cmd = 'top -b -n1|grep -i zombie|';
+    open FILE, $cmd or die $!;
+    while (<FILE>){
+        if (/(\d+)\s+zombie/i){
+            $zombies = $1;
+            if ($zombies > $ZOMBILIMIT){
+                $text .=sprintf "%-12s %-7s %3d\n", $host, 'Zombies',$zombies;
+            }
+        }
+    }
+    close FILE;
+}
+
+# }}}
+# {{{
+# CPU
+if (!$opt_d){
+    print "Checking CPU\n" if $opt_v;
+    my $cpunum =`lscpu 2>/dev/null|grep ^CPU.s.:|f 2`;
+    chomp $cpunum;
+    if ($cpunum gt 0){
+        my $load=`f 1 </proc/loadavg`;
+        chomp $load;
+        my $p = $load*100/$cpunum;
+        if ($p > $CPULIMIT){
+            $text .=sprintf "%-12s %-7s %3d%%\n", $host, 'CPU',$p;
+        }
+    }
+}
+
+# }}}
+# {{{
+# Result
+if ($text){
+    # sort descending numeric by third column & print
+    # Complex sentence
+    $text = join "\n",(
+        sort {(split / +/,$b)[2]<=>(split / +/,$a)[2]; }
+        split ("\n",$text)
+    );
+    print $text;
+    print "\n"
+} else {
+    print "$host Ok\n";
+}
+exit 0;
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub help {
+    # Presenta la ayuda completa. En el Suse de Endesa no se ven bien los acentuados, por eso hay
+    # que hacer una chapuza.
+    my $r = `pod2text -h`;
+    if ($r =~  /utf8/){
+        system "pod2usage -verbose 3 $0";
+    } else {
+        system "pod2usage -verbose 3 $0|latutf";
+    }
+    exit 1;
+}
+# }}}
+# {{{
+sub usage {
+    # Presenta la ayuda abreviada. En el Suse de Endesa no se ven bien lo
+    # acentuados, por eso hay que hacer una chapuza.
+    my $t = shift;
+    warn "$t\n" if $t;
+    my $r = `pod2text -h`;
+    if ($r =~  /utf8/){
+        system "pod2usage $0";
+    } else {
+        system "pod2usage $0|latutf";
+    }
+    exit 1;
+}
+# }}}
+# {{{
+sub version {
+    # Muestra la version del programa, modulos cargados y perl
+    my @keys;
+    my %ver;
+    my %name;
+    my $p = $0;
+    $p =~ s/.*\///;
+    my $a = length($p);
+    my $b = length($VERSION);
+    push @keys, $p;
+    $ver{$p}  = $main::VERSION;
+    $name{$p} = $0;
+    push @keys, 'perl';
+    $ver{'perl'}  = $^V;
+    $name{'perl'} = $^X;
+    $b = length( $^V ) if length( $^V ) > $b;
+
+    foreach ( sort keys %INC ) {
+        my $full = $INC{$_};
+        s/\.pm//;
+        s/\//::/g;
+        my $var = $_;
+        if (/^::/) {
+            $var = 'Undef';
+        } else {
+            $var =~ s/^/\$/;
+            $var =~ s/$/::VERSION/;
+        }
+        push @keys, $_;
+        $ver{$_} = eval $var || 'undef';
+        $name{$_} = $full;
+        $a = length($_)         if length($_) > $a;
+        $b = length( $ver{$_} ) if length( $ver{$_} ) > $b;
+    }
+    foreach (@keys) {
+        printf "%-${a}s %-${b}s %s\n", $_, $ver{$_}, $name{$_};
+    }
+    exit 1;
+}
+# }}}

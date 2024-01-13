@@ -1,0 +1,34 @@
+#!/bin/bash
+### Resumen del log de apache + banned
+FILE=$1
+if [ "$FILE" == "" ]; then FILE=/var/log/apache2/access.log;fi
+echo "========================================================="
+echo WEBAGENTS
+webagents $FILE
+echo "========================================================="
+echo WEBALLRESPONSES
+weballresponses $FILE
+echo "----------- 404"
+webresponse -r 404 $FILE
+echo "========================================================="
+echo WEBREFERERS
+webreferers $FILE
+echo "========================================================="
+echo WEBINTRUDERS
+webintruders $FILE
+echo "========================================================="
+echo WEBSITES
+websites $FILE
+echo "========================================================="
+echo WEBPAGES
+webpages $FILE
+echo "========================================================="
+echo BANNED YESTERDAY
+grep `date -d "now - 1day" +%Y-%m-%d`  /home/luis/etc/banned_ips.txt|sed -e 's/ HTTP.*//'|column -t|sort -k 3,4
+echo "========================================================="
+echo BANNED TODAY
+grep `date +%Y-%m-%d`  /home/luis/etc/banned_ips.txt|sed -e 's/ HTTP.*//'|column -t |sort -k 3
+echo "========================================================="
+echo VISITAS
+visitas
+echo "========================================================="

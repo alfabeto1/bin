@@ -1,0 +1,50 @@
+#!/usr/bin/env perl
+### preprocesa markdown para convertir enlaces con md o sin extensión a html
+
+while (<>){
+    s/(\[.*\])\((.*)(\.md)\)/$1($2.html)/;
+    s/(\[.*\])\(([a-z\_\-\/]+)([a-z\_\-])\)/$1($2$3.html)/i;
+
+    s/@@(.*)@@/<mark>$1<\/mark>/g;
+
+    s#{<WARNING}#<img style="float:left;"src="https://arocha.cf/images/icons/icon-caution.png" title="Warning">#g;
+    s#{WARNING>}#<img style="float:right;"src="https://arocha.cf/images/icons/icon-caution.png" title="Warning">#g;
+    s#{WARNING}#<img src="https://arocha.cf/images/icons/icon-caution.png" title="Warning">#g;
+
+    s#{<VIP}#<img style="float:left;"src="https://arocha.cf/images/icons/icon-important.png" title="Important">#g;
+    s#{VIP>}#<img style="float:right;"src="https://arocha.cf/images/icons/icon-important.png" title="Important">#g;
+    s#{VIP}#<img src="https://arocha.cf/images/icons/icon-important.png" title="Important">#g;
+
+    s#{<DELETE}#<img style="float:left;"src="https://arocha.cf/images/icons/icon-del.png">#g;
+    s#{DELETE>}#<img style="float:right;"src="https://arocha.cf/images/icons/icon-del.png">#g;
+    s#{DELETE}#<img src="https://arocha.cf/images/icons/icon-del.png">#g;
+
+    s#{<NOTE}#<img style="float:left;"src="https://arocha.cf/images/icons/icon-note.png" title="Note">#g;
+    s#{NOTE>}#<img style="float:right;"src="https://arocha.cf/images/icons/icon-note.png" title="Note">#g;
+    s#{NOTE}#<img src="https://arocha.cf/images/icons/icon-note.png" title="Note">#g;
+
+    s#{<NOOK}#<img style="float:left;"src="https://arocha.cf/images/icons/icon-nook.png" title="KO">#g;
+    s#{NOOK>}#<img style="float:right;"src="https://arocha.cf/images/icons/icon-nook.png" title="KO">#g;
+    s#{NOOK}#<img src="https://arocha.cf/images/icons/icon-nook.png" title="KO">#g;
+
+    s#{<OK}#<img style="float:left;"src="https://arocha.cf/images/icons/icon-ok.png" title="OK">#g;
+    s#{OK>}#<img style="float:right;"src="https://arocha.cf/images/icons/icon-ok.png" title="OK">#g;
+    s#{OK}#<img src="https://arocha.cf/images/icons/icon-ok.png" title="OK">#g;
+
+    s#{<:-\(}#<img style="float:left;"src="https://arocha.cf/images/icons/smiley-sad.png">#g;
+    s#{:-\(>}#<img style="float:right;"src="https://arocha.cf/images/icons/smiley-sad.png">#g;
+    s#{:-\(}#<img src="https://arocha.cf/images/icons/smiley-sad.png">#g;
+
+    s#{<:-\)}#<img style="float:left;"src="https://arocha.cf/images/icons/smiley-happy.png">#g;
+    s#{:-\)>}#<img style="float:right;"src="https://arocha.cf/images/icons/smiley-happy.png">#g;
+    s#{:-\)}#<img src="https://arocha.cf/images/icons/smiley-happy.png">#g;
+
+    print;
+}
+__END__
+" iab :DELETE  <div><img style='float:left;'src='https://arocha.cf/images/icons/icon-del.png'></div>
+" iab :NOOK    <div><img style='float:left;'src='https://arocha.cf/images/icons/icon-nook.png'></div>
+" iab :NOTE    <div><img style='float:left;'src='https://arocha.cf/images/icons/icon-note.png'></div>
+" iab :OK      <div><img style='float:left;'src='https://arocha.cf/images/icons/icon-ok.png'></div>
+" iab :-(      <div><img style='float:left;'src='https://arocha.cf/images/icons/smiley-sad.jpg'></div>
+" iab :-)      <div><img style='float:left;'src='https://arocha.cf/images/icons/smiley-happy.jpg'></div>

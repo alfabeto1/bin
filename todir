@@ -1,0 +1,7 @@
+#!/bin/sh
+### Crea directorios y mueve todo lo que empieze con el mismo nombre
+for i in $*; do
+    mkdir $i
+    mv $i?* $i/
+done
+# Ver separador, separa

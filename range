@@ -1,0 +1,144 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<range> - Genera un rango de elementos, numeros o cadenas.
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item range [-h|--help|-u|-V|--version]
+
+=item range [-v] INIT END
+
+=back
+
+=head1 DESCRIPTION
+
+Si no se especifica INIT, se toma por defecto 1.
+
+Si no se especifica END, se toma por defecto 100.
+
+Si el rango pasa de 1.000.000 de elementos se cancela el comando.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2013 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+my $SAFE     = 1000000;
+
+# }}}
+# {{{ Variables
+my $n       = 0;
+my $reverse = 0;
+my $init    =0;
+my $end     =0;
+my $inc     =0;
+my @list;
+my %opt;
+
+# }}}
+# {{{ Parametros
+getopts('huvV',\%opt) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+$init = @ARGV ? shift : 1;
+$end  = @ARGV ? shift : 100;
+$inc  = @ARGV ? shift : 1;
+if ( $end < $init) {
+    warn "Reverse!\n" if $opt{v};
+    $reverse++;
+    my $val = $init;
+    $init   = $end;
+    $end    = $val;
+}
+
+# }}}
+# {{{ Safe Check
+foreach (my $i = $init;  $i <= $end; $i+=$inc  ) {
+    usage ("No es un rango válido") if $n++ > $SAFE;
+}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Generamos la lista
+foreach (my $i = $init;  $i <= $end; $i+=$inc  ) {
+    push @list,$i;
+}
+if ($reverse){
+    warn "Reversing\n" if $opt{v};
+    @list = reverse @list;
+}
+
+# }}}
+# {{{ Print range
+print join ' ',@list;
+print "\n";
+exit 0;
+
+# }}}

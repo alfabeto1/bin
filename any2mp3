@@ -1,0 +1,59 @@
+#!/bin/sh
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+
+=encoding utf-8
+
+=head1 NAME
+
+any2mp3 - Extrae banda sonora o convierte a mp3
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<any2mp3> F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Procesa el fichero de entrada, cualquiera que sea su tipo, aunque debería ser un
+video o audio e intenta generar un fichero mp3.
+
+El fichero generado tiene el mismo nombre que el original, con el sufijo
+F<.mp3>.
+
+Se usa como convertidor C<ffmpeg>.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright (c) 2017 Luis M. Arocha Hernández <lah.data@gmail.com>.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=cut
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+i=$1
+o=$1.mp3
+rm -f $o
+ffmpeg -y -i $i\
+       -ab 128k -f mp3 \
+       -loglevel quiet \
+       -map_metadata 0 -id3v2_version 3 -write_id3v1 1 \
+       $o
+# }}}

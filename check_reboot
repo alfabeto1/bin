@@ -1,0 +1,6 @@
+#!/usr/bin/bash
+
+if [ -f /var/run/reboot-required ]; then
+    message=`cat /var/run/reboot-required`
+    notify "$message"
+fi

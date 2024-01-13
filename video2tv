@@ -1,0 +1,5 @@
+#!/bin/bash
+# Date: 2021-01-12                          
+### Para convertir cualquier video a un codec legible por smart tv no muy nueva
+echo Convirtiendo $1
+ffmpeg -y -loglevel repeat+warning -i $1 -vcodec h264 -acodec aac $1.mp4

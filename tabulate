@@ -1,0 +1,244 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<tabulate> - Tabula las palabras del texto de entrada en columnas
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item tabulate [-h|--help|-u|-V|--version]
+
+=item tabulate [-v] [-t NUM] [-s] [-q] [-w WIDTH] [F<FILE...>]
+
+=back
+
+=head1 DESCRIPTION
+
+Lee el fichero de entrada y coloca las palabras en columnas, ajustando mediante espacios al ancho
+que se especifique para cada columna.
+
+Las palabras pueden ser reubicadas en otras filas.
+
+Si no se especifica ningún fichero de entrata, se usa la entrada estándar. La salida estándar es
+usada siempre.
+
+La indentación (espacios al inicio de línea) de la primera línea marcará la indentación de todas las
+líneas.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h> Muestra la información de ayuda completa.
+
+=item B<-q> uniq. Elimina duplicados. (No implica B<-s>)
+
+=item B<-s> Ordena la lista de palabras de entrada.
+
+=item B<-t NUM> Tabula en columnas de NUM caracteres. Por defecto 20 caracteres.
+
+=item B<-u> Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v> Muestra información detallada durante la ejecución.
+
+=item B<-V> Muestra la versión del comando y los módulos usados.
+
+=item B<-w WIDTH> Ancho de la línea.
+
+=back
+
+=head1 EXIT STATUS
+
+=over 4
+
+=item - B<0>
+
+Everything ok.
+
+=item - B<1>
+
+No input to tabulate.
+
+=item - B<*>
+
+Fatal error.
+
+=back
+
+=head1 SEE ALSO
+
+B<align>, B<aligner>
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a su autor original y
+de acuerdo con los términos de la licencia GPL. (GNU General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.2 $, 10;
+
+# }}}
+# {{{ Variables
+my $left    = '';
+my $line    = '';
+my $linelen = 0;
+my $maxlen  = 0;
+my $TAB     = 0;
+my $text    = '';
+my $WIDTH   = 100;
+my @words;
+my %opt;
+
+# }}}
+# {{{ Parametros
+getopts( 'hcqst:uvVw:', \%opt ) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+usage('La opción -t debe ser un número')
+    if ( $opt{t} and $opt{t} !~ /^\d+$/ );
+$WIDTH = $opt{w} if $opt{w};
+$TAB   = $opt{t} if $opt{t};
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Get prefix from first line
+$line    = <> || exit 1;
+$line    =~ /^(\s*)\S/;
+$left    = $1 || '';
+$linelen = $WIDTH - largo($left);
+
+# }}}
+# {{{
+# Process input. Get single words and store in array
+while ($line) {
+    chomp $line;
+    $line =~ s/^\s*//;
+    if ($opt{c}){
+        push @words, ( split /\s*,\s*/, $line );
+    } else {
+        push @words, ( split /\s+/, $line );
+    }
+    $line = <>;
+}
+# Calculate column width
+if (!$TAB){
+    foreach (@words){
+        $maxlen = largo($_) if largo($_) > $maxlen;
+    }
+    $TAB = $maxlen + 1;
+}
+# process -c
+if ($opt{c}){
+    @words = map {$_.','} @words;
+    $TAB++;
+}
+
+# }}}
+# {{{ Sort and uniq if requested
+if ( $opt{q} ) {
+    my %seen = ();
+    my @uniq = ();
+    foreach my $item (@words) {
+        push( @uniq, $item ) unless $seen{$item}++;
+    }
+    @words = @uniq;
+}
+@words = sort @words if $opt{s};
+# }}}
+# {{{
+# Do Tabulate
+foreach my $w (@words) {
+    if ( $line && ( largo( $line . $w ) >= $linelen ) ) {
+        $line =~ s/ +$//;
+        $text .= $left . $line . "\n";
+        $line = '';
+    }
+    $line  .= $w;
+    my $pad = int( largo($line) / $TAB ) + 1;
+    $pad    = $pad * $TAB;
+    $line  .= ' ' x ( $pad - largo($line) );
+}
+# }}}
+# {{{
+# Output
+$text .= $left . $line . "\n" if $line;
+$text  =~ s/ +\n/\n/m; # Remove trailing blanks
+if ($opt{c}){
+    $text =~ s/,$//;
+}
+print $text;
+exit 0;
+# }}}
+#==============================================================================#
+# Funciones                                                                    #
+#==============================================================================#
+# {{{
+sub largo(){
+    my $t=shift;
+    $t=~ s/[������������������]/x/gi;
+    $t=~ s/á/x/g;
+    $t=~ s/é/x/g;
+    $t=~ s/í/x/g;
+    $t=~ s/ó/x/g;
+    $t=~ s/ú/x/g;
+    $t=~ s/ñ/x/g;
+    $t=~ s/ä/x/g;
+    $t=~ s/ë/x/g;
+    $t=~ s/ï/x/g;
+    $t=~ s/ö/x/g;
+    $t=~ s/ü/x/g;
+    $t=~ s/ç/x/g;
+    $t=~ s/ô/x/g;
+    $t=~ s/ö/x/g;
+    $t=~ s/¡/x/g;
+    $t=~ s/¿/x/g;
+    $t=~ s/Á/x/g;
+    $t=~ s/É/x/g;
+    $t=~ s/Í/x/g;
+    $t=~ s/Ó/x/g;
+    $t=~ s/Ú/x/g;
+    $t=~ s/Ñ/x/g;
+    $t=~ s/Ä/x/g;
+    $t=~ s/Ë/x/g;
+    $t=~ s/Ï/x/g;
+    $t=~ s/Ö/x/g;
+    $t=~ s/Ü/x/g;
+    $t=~ s/Ç/x/g;
+    $t=~ s/Ô/x/g;
+    $t=~ s/Ö/x/g;
+    return length($t);
+}
+# }}}

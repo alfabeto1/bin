@@ -1,0 +1,225 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<extrae> - Extrae contenido de directorios y ficheros comprimidos
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item extrae [-h|--help|-u|-V|--version]
+
+=item extrae [-v] [-f]
+
+=back
+
+=head1 DESCRIPTION
+
+Permite ver el contenido de directorios y ficheros comprimidos y decidir
+si extraer o borrar.
+
+Con la opción -f no se muestra el contenido, sino que directamente se
+extrae todo lo que tenga un contenido relativamente bajo.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-f>
+
+Force. No se pide confirmación para el borrado.
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# BUG + TODO
+# Use carefully
+# Should accept a filename
+# Treat dir only if option
+# Assure dont delete unless decided
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my $f;
+my %opt;
+
+# }}}
+# {{{ Parametros
+getopts( 'fhuvV', \%opt ) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+opendir DIR, '.' or die;
+while ( $f = readdir(DIR) ) {
+    next if $f =~ /^\./;
+    next unless -f $f or -d $f;
+    warn "Procesando $f\n" if $opt{v};
+    my $sw     = 0;
+    my $cmd1   = '';
+    my $cmd2   = '';
+    my $inicio = '';
+    my $lineas = 0;
+    my $n      = 0;
+    my $l;
+
+    if ( -d $f ) {
+        $cmd1   = 'ls -l --color=auto ';
+        $cmd2   = 'mv -vi %s/* .';
+        $inicio = '^total';
+        $lineas = 1;
+    } elsif ( $f =~ /\.(tbz2?|tar.bz2)$/i ) {
+        $cmd1   = 'tar -tjvf';
+        $cmd2   = 'tar -xjf %s';
+        $inicio = '';
+        $lineas = 99999;
+    } elsif ( $f =~ /\.(tgz|tar.gz)$/i ) {
+        $cmd1   = 'tar -tzvf';
+        $cmd2   = 'tar -xzf %s';
+        $inicio = '';
+        $lineas = 99999;
+    } elsif ( $f =~ /\.tar$/i ) {
+        $cmd1   = 'tar -tvf';
+        $cmd2   = 'tar -xf %s';
+        $inicio = '';
+        $lineas = 99999;
+    } elsif ( $f =~ /\.gz$/i ) {
+        $cmd1   = 'gunzip %s';
+        $cmd2   = 'gunzip -c %s';
+        $inicio = '';
+        $lineas = 99999;
+    } elsif ( $f =~ /\.bz2$/i ) {
+        $cmd1   = 'bunzip2 %s';
+        $cmd2   = 'bunzip2 -c %s';
+        $inicio = '';
+        $lineas = 99999;
+    } elsif ( $f =~ /\.rar$/i ) {
+        $cmd1   = 'rar l 2>/dev/null';
+        $cmd2   = 'rar x -o+ %s >/dev/null';
+        $inicio = '^ Name ';
+        $lineas = 5;
+    } elsif ( $f =~ /\.ace$/i ) {
+        $cmd1   = 'unace l ';
+        $cmd2   = 'unace x %s >/dev/null';
+        $inicio = '.';
+        $lineas = 99999;
+    } elsif ( $f =~ /\.7z$/i ) {
+        $cmd1   = '7zr l ';
+        $cmd2   = '7zr x %s >/dev/null';
+        $inicio = '.';
+        $lineas = 99999;
+    } elsif ( $f =~ /\.zip$/i ) {
+        $cmd1   = 'unzip -l ';
+        $cmd2   = 'unzip -o %s >/dev/null';
+        $inicio = '^  Length ';
+        $lineas = 4;
+    }
+    next unless $cmd1;
+    print "$cmd1 $f\n";
+    open FILE, "$cmd1 \"$f\"|" or die;
+    if ( !$inicio ) {
+        $sw = 1;
+    }
+    while ( $l = <FILE> ) {
+        if ( $l =~ /$inicio/ ) {
+            $sw = 1;
+            next;
+        }
+        if ($sw) {
+            $n++;
+            print $l unless $opt{f};
+        }
+    }
+    close FILE;
+    if ($opt{f}) {
+        print "$f --> Lineas $n\n";
+        if ( $n <= $lineas ) {
+            print "    EXTRAER\n";
+            my $cmd = sprintf $cmd2, "\"$f\"";
+            system($cmd);
+        } else {
+            print "    NO  EXTRAER\n";
+        }
+        print "\n" x 2;
+    } else {
+        print "e(x)traer (b)orrar (i)gnorar (q)uit?";
+        my $v = <STDIN>;
+        chomp $v;
+        if ( $v =~ /^x/i ) {
+            print "Extraer\n";
+            my $cmd = sprintf $cmd2, "\"$f\"";
+            system($cmd);
+            system "rm -r \"$f\"";
+        } elsif ( $v =~ /b/i ) {
+            print "Borrar\n";
+            system "rm -r \"$f\"";
+        } elsif ( $v =~ /i/i ) {
+            print "Ignorar\n";
+            last;
+        } elsif ( $v =~ /q/i ) {
+            print "Salir";
+            closedir DIR;
+            exit;
+        }
+    }
+}
+closedir DIR;
+exit;
+
+# }}}

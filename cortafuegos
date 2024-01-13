@@ -1,0 +1,378 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<cortafuegos> - Mi Firewall
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item cortafuegos [-h|--help|-u|-V|--version]
+
+=item cortafuegos [-v] [-t] (start|stop|status|restart|reload)
+
+=back
+
+=head1 DESCRIPTION
+
+Comando para arranque y parada del cortafuegos.
+
+Debe ubicarse en F</etc/init.d> y crearse los links correspondientes en
+F</etc/rc2.d>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-t> 
+
+Test mode. No se ejecuta el cortafuegos, solo se muestran
+los comandos a utilizar.
+
+=item B<-u> 
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v> 
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ LSB Info
+### BEGIN INIT INFO
+# Provides:          firewall
+# Required-Start:    $syslog
+# Required-Stop:     $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Description:       My own firewall with IPTABLES
+### END INIT INFO
+# }}}
+# {{{ Modulos
+# No se usa CommonFunc porque este comando se instala en /etc/init.d
+use strict;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+my $IPT      = '/usr/sbin/iptables';
+
+# Redes con las que no debe haber comunicacion.  IPs
+# reservadas por IANA y redes privadas que no usamos. Ver
+# RFC1166
+#  45.0.0.0/8
+my $NULL_NETS = <<'EOF';
+  0.0.0.0/8
+  10.0.0.0/8
+  127.0.0.0/8
+  128.0.0.0/16
+  129.0.0.0/16
+  129.255.0.0/16
+  172.16.0.0/12
+  191.255.0.0/16
+  192.0.0.0/24
+  223.255.255.0/24
+  224.0.0.0/4
+  240.0.0.0/5
+EOF
+
+# }}}
+# {{{ Parametros
+my %opt;
+getopts( 'htuvV', \%opt ) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+my $orden = shift || '';
+if ( $orden !~ /^(start|stop|restart|reload|status)$/ ) {
+    usage('Orden no válida');
+}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# Check
+if (! -x $IPT){
+    die "$IPT no es usable\n";
+}
+# {{{ Ejecutar orden
+$orden eq 'start'   and start();
+$orden eq 'stop'    and stop();
+$orden eq 'restart' and restart();
+$orden eq 'reload'  and restart();
+$orden eq 'status'  and status();
+exit 0;
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub help {
+    system "pod2text -c $0";
+    exit 1;
+}
+
+# }}}
+# {{{
+sub usage {
+    my $t = shift;
+    warn "$t\n" if $t;
+    system "pod2usage -verbose 1 $0";
+    exit 1;
+}
+
+# }}}
+# {{{
+sub version {
+    # Muestra la version del programa, modulos cargados y perl
+    my @keys;
+    my %ver;
+    my %name;
+    my $p = $0;
+    $p =~ s/.*\///;
+    my $a = length($p);
+    my $b = length($VERSION);
+    push @keys, $p;
+    $ver{$p}  = $main::VERSION;
+    $name{$p} = $0;
+
+    foreach ( sort keys %INC ) {
+        my $full = $INC{$_};
+        s/\.pm//;
+        s/\//::/g;
+        my $var = $_;
+        if (/^::/) {
+            $var = 'Undef';
+        } else {
+            $var =~ s/^/\$/;
+            $var =~ s/$/::VERSION/;
+        }
+        push @keys, $_;
+        $ver{$_} = eval $var || 'undef';
+        $name{$_} = $full;
+        $a = length($_)         if length($_) > $a;
+        $b = length( $ver{$_} ) if length( $ver{$_} ) > $b;
+    }
+    push @keys, 'perl';
+    $ver{'perl'}  = $^V;
+    $name{'perl'} = $^X;
+    foreach (@keys) {
+        printf "%-${a}s %-${b}s %s\n", $_, $ver{$_}, $name{$_};
+    }
+    exit 1;
+}
+
+# }}}
+# {{{
+sub Do {
+    # Ejecutar comando
+    my $line = shift || '';
+    if ($opt{v}) {
+        print "$line\n";
+    }
+    if ( !$opt{t} ) {
+        system $line;
+        if ($?){
+           die "($?) No se pudo ejecutar\n";
+        }
+    }
+}
+
+# }}}
+# {{{
+sub Mark {
+    # Comentario y linea de separacion
+    return unless $opt{v};
+    my $line = shift || '';
+    print "\n";
+    print "$line\n";
+    print "=" x 72 . "\n";
+}
+
+# }}}
+# {{{
+sub restart {
+    # Stop and start
+    stop();
+    Mark();
+    start();
+}
+
+# }}}
+# {{{
+sub status {
+    # Show iptables rules
+    Do("$IPT -L -n -v");
+}
+
+# }}}
+# {{{
+sub start {
+    print "Starting firewall services\n";
+
+    Mark("Drop ICMP echo-request sent to broadcast or multicast addresses");
+    Do("echo 1 > /proc/sys/net/ipv4/icmp_echo_ignore_broadcasts");
+
+    Mark("Drop source routed packets");
+    Do("echo 0 > /proc/sys/net/ipv4/conf/all/accept_source_route");
+
+    Mark("Enable TCP SYN cookie protection from SYN floods");
+    Do("echo 1 > /proc/sys/net/ipv4/tcp_syncookies");
+
+    Mark("Don't accept ICMP redirect messages");
+    Do("echo 0 > /proc/sys/net/ipv4/conf/all/accept_redirects");
+
+    Mark("Don't send ICMP redirect messages");
+    Do("echo 0 > /proc/sys/net/ipv4/conf/all/send_redirects");
+
+    Mark("Enable source address spoofing protection");
+    Do("echo 1 > /proc/sys/net/ipv4/conf/all/rp_filter");
+
+    Mark("Log packets with impossible source addresses");
+    Do("echo 1 > /proc/sys/net/ipv4/conf/all/log_martians");
+
+    Mark("Flush all chains");
+    Do("$IPT --flush");
+
+    Mark("Set default policies");
+    Do("$IPT --policy INPUT DROP");
+    Do("$IPT --policy OUTPUT ACCEPT");
+    Do("$IPT --policy FORWARD DROP");
+
+    Mark("Permitir trafico interno (localhost)");
+    Do("$IPT -A INPUT  -i lo                               -j ACCEPT");
+    Do("$IPT -A OUTPUT -o lo                               -j ACCEPT");
+
+    Mark("Eliminar paquetes habitualmente usados por port-scanners");
+    Do("$IPT -A INPUT -p tcp --tcp-flags ALL     NONE      -j DROP");
+    Do("$IPT -A INPUT -p tcp --tcp-flags SYN,FIN SYN,FIN   -j DROP");
+    Do("$IPT -A INPUT -p tcp --tcp-flags SYN,RST SYN,RST   -j DROP");
+    Do("$IPT -A INPUT -p tcp --tcp-flags FIN,RST FIN,RST   -j DROP");
+    Do("$IPT -A INPUT -p tcp --tcp-flags ACK,FIN FIN       -j DROP");
+    Do("$IPT -A INPUT -p tcp --tcp-flags ACK,PSH PSH       -j DROP");
+    Do("$IPT -A INPUT -p tcp --tcp-flags ACK,URG URG       -j DROP");
+
+    Mark("Rechazar paquetes de redes inexistentes/reservadas");
+    for my $i ( split /\n/, $NULL_NETS ) {
+        Do("$IPT -A INPUT  -p tcp -s $i                    -j DROP");
+        Do("$IPT -A INPUT  -p tcp -d $i                    -j DROP");
+        Do("$IPT -A OUTPUT -p tcp -s $i                    -j DROP");
+        Do("$IPT -A OUTPUT -p tcp -d $i                    -j DROP");
+    }
+
+    Mark("Rechazar paquetes que dicen ser de loopback pero son de fuera");
+    Do("$IPT -A INPUT  -i eth0 -s 127.0.0.0/8              -j DROP");
+    Do("$IPT -A OUTPUT -o eth0 -s 127.0.0.0/8              -j DROP");
+
+    Mark("Permitir trafico de la red local");
+    Do("$IPT -A INPUT -s 192.168.2.1/16                    -j ACCEPT");
+
+    Mark("Permitir trafico ya iniciado");
+    Do("$IPT -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT");
+
+    # Mark("Permitir trafico entrante FTP/SFTP/SSH");
+    # Do("$IPT -A INPUT -p tcp -s 0/0 --dport 20:22          -j ACCEPT");
+    # Do("$IPT -A INPUT -p tcp -s 0/0 --dport 10000:10100    -j ACCEPT");
+
+    Mark("Permitir trafico entrante HTTP");
+    Do("$IPT -A INPUT -p tcp -s 0/0 --dport   80           -j ACCEPT");
+    Do("$IPT -A INPUT -p tcp -s 0/0 --dport  443           -j ACCEPT");
+
+    Mark("Permitir trafico entrante Torrent");
+    for my $p ( 6881 .. 6899 ) {
+        Do("$IPT -A INPUT -p tcp -s 0/0 --dport $p         -j ACCEPT");
+    }
+    Mark("Permitir trafico entrante EMULE");
+    Do("$IPT -A INPUT -p tcp -s 0/0 --dport 4661           -j ACCEPT");
+    Do("$IPT -A INPUT -p tcp -s 0/0 --dport 4662           -j ACCEPT");
+    Do("$IPT -A INPUT -p udp -s 0/0 --dport 4665           -j ACCEPT");
+    Do("$IPT -A INPUT -p udp -s 0/0 --dport 4666           -j ACCEPT");
+    Do("$IPT -A INPUT -p udp -s 0/0 --dport 4672           -j ACCEPT");
+
+    Mark("Permitir trafico entrante OTRAS REDES P2P");
+    for my $p (qw/375 412 425 1214 1412 2234 2412 4444 6346 6347 6666 6699/) {
+        Do("$IPT -A INPUT -p tcp -s 0/0 --dport $p         -j ACCEPT");
+    }
+    for my $p (qw/4444 6346 6347 6666/) {
+        Do("$IPT -A INPUT -p udp -s 0/0 --dport $p         -j ACCEPT");
+    }
+    Mark("Rechazar SPAMHAUS");
+    open FILE, '/etc/banned-spamhaus' or die $!;
+    while (<FILE>){
+        chomp;
+        Do("$IPT -I INPUT -s $_  -m comment --comment WEBBAN-SPAMHAUS -j DROP");
+    }
+    close FILE;
+    Mark("Rechazar DSHIELD");
+    open FILE,  '/etc/banned-dshield' or die $!;
+    while (<FILE>){
+        chomp;
+        Do("$IPT -I INPUT -s $_  -m comment --comment WEBBAN-DSHIELD -j DROP");
+    }
+    close FILE;
+    # Mark("Rechazar MINE");
+    # open FILE, '/etc/banned-mine' or die $!;
+    # while (<FILE>){
+    #     chomp;
+    #     s/ .*//;
+    #     Do("$IPT -I INPUT -s $_  -m comment --comment WEBBAN-MINE -j DROP");
+    # }
+    # close FILE;
+}
+
+# }}}
+# {{{
+sub stop {
+    # Shut down firewall
+    print "Shutting down firewall services\n";
+    Mark("Flush and clean");
+    Do("$IPT -F");
+    Do("$IPT -X");
+    Do("$IPT -Z");
+    Mark("Set default policies");
+    Do("$IPT --policy INPUT ACCEPT");
+    Do("$IPT --policy OUTPUT ACCEPT");
+    Do("$IPT --policy FORWARD ACCEPT");
+}
+
+# }}}

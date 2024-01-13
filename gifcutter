@@ -1,0 +1,8 @@
+#!/bin/bash
+### para quitar 4 segundos del final de un gif generado con screenpresso (publicidad)
+TOCUT=4
+F=$1
+D1=$(ffprobe -show_entries stream=duration  $1 2>/dev/null|grep duration|sed -e 's/duration=//')
+D2=$(echo "$D1"- "$TOCUT" |bc)
+echo ffmpeg -i $F -map 0 -c copy -t $D2 ${F/\.gif/-r.gif}
+ffmpeg -i $F -map 0 -c copy -t $D2 ${F/\.gif/-r.gif}

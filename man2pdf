@@ -1,0 +1,3 @@
+#!/bin/sh
+### Genera un fichero pdf a partir de la ayuda del comando man
+man -t $1 | ps2pdf - >$1.pdf

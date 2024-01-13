@@ -1,0 +1,169 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<onebyday> - Reduce numbers of backups to one by day
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item onebyday [-h|--help|-u|-V|--version]
+
+=item onebyday [-v] [-t] F<DIR>
+
+=back
+
+=head1 DESCRIPTION
+
+Se procesa un directorio con multiples copias con el formato
+F<nombre-aaaa-mm-dd_hh.mm~>, y se borran las más antiguas, dejando la última de
+cada día.
+
+=head1 ARGUMENTS
+
+F<DIR> es el directorio donde estan los backups.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Help. Muestra la información de ayuda completa.
+
+=item B<-t>
+
+Test mode. No ejecuta. Solo muestra lo que se haría.
+
+=item B<-u>
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Verbose. Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Version. Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al
+autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2015 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my %opt;
+my @files    = qw//;
+my $antfile  = '';
+my $antday   = '';
+my $antname  = '';
+my $savedate = day(time()-84600);   # Now minus 84600 seconds = yesterday
+my $dir;
+
+# }}}
+# {{{ Parametros
+getopts('htuvV',\%opt) or usage('Fallo parámetros');
+help()              if $opt{h};
+usage()             if $opt{u};
+if ($opt{V}){version();exit 1;}
+$dir = shift || usage ('Falta un directorio');
+-d $dir || usage('No es directorio');
+$dir=~ s/\/$//;
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+@files = sort (glob("$dir/*"),glob("$dir/.??*"));
+foreach (@files){
+    next if /%/;
+    next unless (/(.*)\.(\d\d\d\d-\d\d-\d\d)_\d\d\.\d\d(-copy)?~$/);
+    if ($2 ge $savedate){
+        if ($antfile){
+            # print "$antfile Mantenemos\n" if $opt{v};
+            $antfile=$antday=$antname='';
+        }
+        print "$_ Ayer u hoy. Lo mantenemos\n" if $opt{v};
+        next;
+    }
+    if ($1 eq $antname and $2 eq $antday){
+        if ($opt{t}){
+            print "Borrar $antfile\n";
+        } else {
+            if (unlink $antfile){
+                print "$antfile borrado\n" if $opt{v};
+            } else {
+                die $!;
+            }
+        }
+    } else {
+        if ($antfile){
+            print "$antfile Mantenemos\n" if $opt{v};
+        }
+    }
+    $antfile = $_;
+    $antname = $1;
+    $antday  = $2;
+}
+exit 0;
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub day {
+    # get date as AAAA-MM-DD
+    # Now if not argument
+    my $t = shift||time();
+    my ( $sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst ) =
+        localtime($t);
+    return sprintf "%04d-%02d-%02d", $year+1900,  $mon+1,  $mday;
+}
+
+# }}}

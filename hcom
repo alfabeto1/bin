@@ -1,0 +1,148 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<hcom> - Lista los comandos y sus lineas de descripcion
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<hcom> [-h|--help|-u|-V|--version]
+
+=item B<hcom> [F<FILE>...]
+
+=back
+
+=head1 DESCRIPTION
+
+Lista los comandos y sus lineas de descripción. Si no se le indica ningún
+parámetro lista los de $HOME/bin.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Help.Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-V>, B<--version>
+
+Version. Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2013 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+my $HOME=$ENV{HOME};
+our $VERSION = substr q$Revision: 3.2 $, 10;
+
+# }}}
+# {{{ Variables
+my %opt;
+my @args;
+
+# }}}
+# {{{ Parametros
+getopts( 'huV', \%opt ) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){
+    version();exit 1;
+}
+if (@ARGV){
+    @args = @ARGV;
+} else {
+    opendir DIR,"$HOME/bin" or die "No se pudo abrir ~/bin. $!\n";
+    while (my $f = readdir(DIR)){
+        next if $f=~ /.bak$/;
+        next if $f=~ /~$/;
+        next if -d "$HOME/bin/$f";
+        push @args, "$HOME/bin/$f";
+    }
+    close DIR;
+    @args = sort @args;
+}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+foreach my $f(@args){
+    my $l;
+    my $sw  =0;
+    my $desc='Sin descripcion -------********------';
+    open FILE, $f or die "No se pudo abrir $f. $!\n";
+    while ($l=<FILE>){
+        # en cada fichero a procesar buscamos una cabecera que nos indique el
+        # cometido del mismo, ya sea en linea ### o en la sección NAME del pod
+        next if ($l =~ /^\s+$/);
+        if ($l =~ /^(###|""") +(.*)/){
+            $desc = $2;
+            last;
+        }
+        if ($l =~ /^=head1 NAME/){
+            $sw = 1;
+            next;
+        }
+        if ($sw and $l =~ /^=/){
+            last;
+        }
+        if ($sw){
+            my @f = split /\s+-\s+/,$l,2;
+            $desc = $f[1];
+            last;
+        }
+    }
+    close FILE;
+    $f=~ s/.*\///;
+    chomp $desc;
+    printf "%-15s %s\n", $f, $desc;
+}
+exit 0;
+# }}}

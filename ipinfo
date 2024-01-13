@@ -1,0 +1,6 @@
+#!/bin/bash
+### Get ip information
+# Token adquired for 50k free queries/month
+ip=$1
+curl -s -u 1c4a9485fb0bbd: ipinfo.io/$ip
+

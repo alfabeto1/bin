@@ -1,0 +1,83 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+
+=encoding utf-8
+
+=head1 NAME
+
+B<clean> - Borrado de ficheros de backup, cores y otros varios inutiles
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<clean> [-r]
+
+=back
+
+=head1 DESCRIPTION
+
+Borrado de ficheros de backup, cores y otros varios inutiles
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-r> 
+
+Recursivo.
+
+=back
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# Recursivo
+if test "$1" = "-r" ; then
+    find -type f  -a \( \
+        -name '*.BAK' -o -name '*.bak' -o -name '*.nfo'       -o \
+        -name '*.old' -o -name '*.sfv' -o -name '*.stackdump' -o \
+        -name '*.ti'  -o -name '*.torrent.log'                -o \
+        -name '*.url' -o -name '*.URL' -o -name '*~'          -o \
+        -name a.out   -o -name '*_orig' -o \
+        -name 'Importante*eer*.txt'    -o -name 'Torrent*txt' -o \
+        -name '\.*~'  -o -name 'core'  -o -name 'url'         -o  \
+        -name 'Difunde?la?palabra*.txt' \
+        -name 'Leeme.txt' \
+        \) -exec rm -v {} \;
+    # find -xtype l -exec rm -vi {} \;   # Untested
+else
+    # Borrar ficheros inútiles
+    rm -v -f *_orig *.url *.nfo a.out core *.bak \
+             *.ti *.BAK *~ *.old .*~ Torrent*txt \
+             *.torrent.log 'url' Importante*eer*.txt \
+             *.sfv www.*.nfo *.stackdump *.URL \
+             Difunde?la?palabra*.txt \
+             Leeme.txt
+
+    # Remove orphan symbolic links (no recurse)
+    find -L . -name . -o -type d -prune -o -type l -exec rm -vi {} \;
+fi

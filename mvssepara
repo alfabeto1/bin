@@ -1,0 +1,208 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<mvssepara> - Separa un PDS compactado en formato IEBPTPCH
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item mvssepara [-h|--help|-u|-V|--version]
+
+=item mvssepara [-v] [F<FILE> [F<DIR>]]
+
+=back
+
+=head1 DESCRIPTION
+
+Toma como entrada un fichero bajado de HOST conteniendo una librería en
+formato IEBPTPCH y la separa en un directorio.
+
+El objetivo de este script y su pareja F<mvsjoin> es acelerar la
+transmisión de librerías HOST mediante FTP.
+
+El procedimiento I<normal> de hacer mget o mput de un conjunto de
+miembros de carpeta, o de una librería en HOST, es extremadamente lento.
+En el caso de las librerías de JCL master puede ocupar alrededor de hora
+y media.
+
+El procedimiento I<rápido>, usando F<mvsjoin> y F<mvssepara>, junto con
+sus correspondientes JCLs en HOST es mucho más ágil, aunque haya que
+hacer varias operaciones "a mano". Del orden de 5 minutos.
+
+=head1 ARGUMENTS
+
+F<FILE> debe ser un fichero de HOST en el formato adecuado (IEBPTPCH).
+Por defecto se toma la entrada estándar.
+
+F<DIR> es el nombre de la carpeta a crear. Por defecto B<LIB>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 JCL HOST
+
+Este es un ejemplo del JCL que sería necesario en HOST para convertir
+una librería a un único fichero de texto, para bajarlo a PC.
+
+ //UPCDI54J JOB (999),'UPCDI54',CLASS=A,MSGCLASS=X,REGION=6M
+ //*=====================================================================
+ //* CONCATENA LIBRERIA EN UN FICHERO SECUENCIAL
+ //* EL FORMATO DE SALIDA ES
+ //* VMEMBER NAME  XXXXXXXX
+ //* V...........................
+ //* V.............................
+ //* ESTE FICHERO SE PUEDE TRANSMITIR RAPIDAMENTE POR FTP
+ //* Y VOLVER A SEPARARLO EN DESTINO
+ //*=====================================================================
+ //* SE PREPARA UN PROCEDIMIENTO PARA CREAR FICHERO SECUENCIAL
+ //* ESTE PROCEDIMIENTO SE PUEDE INVOCAR PARA TODAS LAS
+ //* LIBRERIAS QUE SEA NECESARIO
+ //*=====================================================================
+ //COMPRESS PROC
+ //PASOP01  EXEC PGM=IEFBR14
+ //BORRAME0 DD DSN=UPCDI54.&LIB,DCB=(BLKSIZE=0),
+ //            DISP=(MOD,DELETE),UNIT=SYSDA,SPACE=(TRK,(1,1))
+ //*---------------------------------------------------------------------
+ //PASOP02  EXEC PGM=IEBPTPCH
+ //SYSERROR DD SYSOUT=*
+ //SYSPRINT DD DUMMY
+ //SYSUT1   DD DSN=&LIB,DISP=SHR
+ //SYSUT2   DD DSN=UPCDI54.&LIB,DISP=(NEW,CATLG),
+ //            DCB=(RECFM=FB,LRECL=81,BLKSIZE=8100),
+ //            SPACE=(TRK,(1000,500),RLSE),UNIT=SYSDA
+ //SYSIN    DD DSN=&&SYSIN,DISP=SHR
+ // PEND
+ //**********************************************************************
+ //*  CREAMOS TEMPORAL CON EL SYSIN DEL PROCESO DE COMPRESS
+ //**********************************************************************
+ //PASO000  EXEC PGM=IEBGENER
+ //SYSPRINT DD SYSOUT=*
+ //SYSUT1   DD *
+    PUNCH TYPORG=PO
+ /*
+ //SYSUT2   DD DSN=&&SYSIN,DISP=(NEW,KEEP),UNIT=SYSDA,
+ //            SPACE=(TRK,(1,1)),DCB=(RECFM=FB,LRECL=80,BLKSIZE=800)
+ //**********************************************************************
+ //*  EJECUTAMOS EL PROCEDIMIENTO
+ //**********************************************************************
+ //PASO001  EXEC COMPRESS,LIB=SCE5.MS.ENE.JCL
+ //
+
+=head1 SEE ALSO
+
+B<mvsjoin>, B<hdfile>, B<hufile>.
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my $file = '';
+my %opt;
+my $input;
+my $dest;
+
+# }}}
+# {{{ Parametros
+getopts('huvV',\%opt) or usage('Fallo parametros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+$input = shift || '-';
+$dest  = shift || 'LIB';
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Creamos directorio destino y grabamos los ficheros
+mkdir $dest unless -d $dest;
+warn "Procesando $input\n" if $opt{v};
+my $cuenta = 0;
+open INPUT, $input or die $!;
+while (<INPUT>) {
+    if (/^VMEMBER NAME  (\S+) /) {
+        close FILE if $file;
+        $file = $1;
+        warn "Grabando $dest/$file\n" if $opt{v};
+        open FILE, ">$dest/$file" or die "No se pudo crear $file. $!\n";
+        $cuenta++;
+        next;
+    }
+    next unless $file;
+    my $line  = substr( $_, 1 );
+    my $check = substr( $_, 1, 1 );
+    if ( $check eq chr(0) ) {
+        print "   Miembro $file tiene chr0\n" if $opt{v};
+        $line =~ s/^./ /;
+    }
+    print FILE $line;
+}
+close FILE if $file;
+close INPUT;
+print "Grabados $cuenta miembros\n";
+exit 0;
+
+# }}}

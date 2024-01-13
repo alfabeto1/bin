@@ -1,0 +1,189 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<aligner> - Alinea los '=' (o texto alternativo) en un grupo de sentencias
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item aligner [-h|--help|-u|-V|--version]
+
+=item aligner [-c] [-n NUM] [-v] [-s STRING] F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Alinea los signos (o texto alternativo) igual en un grupo de sentencias,
+añadiendo los espacios necesarios para que todos queden en la columna del que
+esté mas avanzado.
+
+=head1 ARGUMENTS
+
+Fichero(s) de entrada a alinear.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-c>
+
+Clean. Borra los espacios antes del texto antes de alinear.
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-n NUM> (integer)
+
+Alinea la enésima aparición de la cadena buscada.
+
+DEFAULT: 1
+
+=item B<-s STRING> (string)
+
+Texto a alinear.
+
+DEFAULT: '='
+
+=item -u
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Verbose. Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al
+autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2014 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{
+# Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my %opt;
+my @lines;
+my $pos    = 0;
+my $string = '=';
+my $index  = 1;
+
+# }}}
+# {{{ Parametros
+getopts('cn:s:huvV',\%opt) or usage('Fallo parámetros');
+help()              if $opt{h};
+usage()             if $opt{u};
+if ($opt{V}){version();exit 1;}
+$string = $opt{s}  if length($opt{s});
+$index  = $opt{n}   if $opt{n};
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Obtener la posicion de alineacion
+@lines=<>;
+foreach my $i(0 .. $#lines){
+    my $l = $lines[$i];
+    my $p = index($l,$string);
+    foreach(2 .. $index){
+        $p = index($l,$string,$p+1);
+    }
+    if ($opt{c}){
+        if (substr($l,$p-1,1) eq ' '){
+            while (substr($l,$p-2,1) eq ' '){
+                substr($l,$p-2,1)='';
+                $p--;
+            }
+            $lines[$i] = $l;
+        }
+    }
+    $pos = $p if ($pos < $p);
+}
+
+# }}}
+# {{{
+# Alinear
+foreach my $l (@lines){
+    my $s = $string;
+    my $p;
+    if ($l =~ /([\.\!\|\+\-]+)=/){
+        $s = "$1=";
+        $p = index($l,$s)+mlength($1);
+        foreach(2 .. $index){
+            $p = index($l,$s,$p+1);
+        }
+    } else {
+        $p = index($l,$s);
+        foreach(2 .. $index){
+            $p = index($l,$s,$p+1);
+        }
+    }
+    my $a = substr($l,0,$p);
+    my $b = substr($l,$p);
+    while (mlength($a)<$pos){
+        $a.=' ';
+    }
+    $a .= $b;
+    $a  =~ s/ +$//;
+    print $a;
+}
+
+exit 0;
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub mlength {
+    my $t=shift;
+    $t=~ s/(á|é|í|ó|ú|ñ|à|è|ì|ò|ù|ü)/1/gi;
+    return length($t);
+}
+# }}}

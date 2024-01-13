@@ -1,0 +1,141 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+
+=encoding utf-8
+
+=head1 NAME
+
+B<timeout> - Realiza la ejecución de un comando con tiempo máximo
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item timeout [-h|--help|-u|-V|--version]
+
+=item timeout [-v] [-t TIMEOUT] C<COMANDO + PARAMETROS>
+
+=back
+
+=head1 DESCRIPTION
+
+Ejecuta el comando que se le indique. Si no ha terminado su ejecución en
+un tiempo dado es cancelado.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-t> TIMEOUT
+
+Tiempo en segundos que se espera la ejecución del comando. Si en ese
+tiempo no ha terminado el comando se cancela.
+
+DEFAULT: 60
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my $pid = 0;
+my $timeout = 60;
+my %opt;
+my $cmd;
+
+# }}}
+# {{{ Parametros
+getopts( 'ht:uvV', \%opt ) or usage('Fallo parámetros');
+help()              if $opt{h};
+usage()             if $opt{u};
+if ($opt{V}){version();exit 1;}
+warn "Args=@ARGV\n" if $opt{v};
+$timeout = $opt{t} if $opt{t};
+$cmd = "@ARGV";
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Establecemos la rutina de timeout
+$SIG{ALRM} = sub {
+    warn "timeout: La ejecución lleva mas de $timeout segundos!\n";
+    warn "timeout: Cancelado comando '$cmd'\n";
+    if ($pid) {
+        kill( 15, $pid );
+        sleep 1;
+        kill( 9, $pid );
+    }
+    exit 1;
+};
+alarm($timeout);
+
+# }}}
+# {{{ Ejecutamos el comando
+if ( $pid = open( INPUT, "$cmd |" ) ) {
+    print while (<INPUT>);
+    close INPUT;
+} else {
+    warn("timeout: No se pudo ejecutar '$cmd': $!\n");
+    exit 1;
+}
+exit 0;
+
+# }}}

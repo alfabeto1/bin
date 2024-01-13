@@ -1,0 +1,40 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+
+=head1 NAME
+
+para - Mueve ficheros al home de un usuario y les cambia propiedad
+
+=head1 SYNOPSIS
+
+para USER [FILE...]
+
+=head1 DESCRIPTION
+
+Mueve ficheros al home de un usuario y les cambia propiedad
+
+=cut
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+U=$1
+shift
+if test ! -d /home/$U; then
+    echo "El usuario <$U> no existe"
+    exit 1
+fi
+f=$1
+shift
+while [[ $f ]]; do
+    sudo chown -R $U:$U "$f"
+    sudo mv -v "$f" /home/$U/
+    f=$1
+    shift
+done
+exit 0

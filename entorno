@@ -1,0 +1,255 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+B<entorno> - Comprueba y repara mi entorno de trabajo
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<entorno> [-h|-u|-V]
+
+=item B<entorno> [-r]
+
+=back
+
+=head1 DESCRIPTION
+
+Comprueba y repara mi entorno de trabajo, creando directorios y enlaces si es
+necesario.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>
+
+Help. Muestra la información de ayuda completa.
+
+=item B<-r>
+
+Repair. Crea ficheros, directorios y enlaces.
+
+=item B<-u>
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-V>
+
+Version. Muestra la versión del comando.
+
+=back
+
+=head1 FILES
+
+Se chequean y, en su caso, se crean los siguientes ficheros, links  y
+directorios: F<.nonames>, F<.vimundo>, F<.bash_logout>, F<.bash_profile>,
+F<.bashrc>, F<.dir_colors>, F<.gnupg>, F<.inputrc>, F<.kshrc>, F<.less>,
+F<.my.cnf>, F<.psqlrc>, F<.perltidyrc>, F<.profile>, F<.tidyrc>, 
+F<.vim>.
+
+Caso especial es F<.mailrc>, que solo se creará en los servidores de Enel, ni en
+mi portátil ni en casa.
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al
+autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+function usage {
+    if test "$*"; then
+        echo $*
+    fi
+    pod2usage -verbose 1 $0
+    exit 1
+}
+
+# }}}
+# {{{
+function help {
+    pod2text -c $0
+    exit 1
+}
+
+# }}}
+# {{{
+ function version {
+    echo "${0/*\//} - $VERSION"
+    exit 1
+}
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Variables
+VERSION="$Revision: 3.5 $"
+VERSION=${VERSION#:\ }
+VERSION=${VERSION%\ \$}
+repair=0
+FILES="
+.bash_logout .bash_profile .bashrc .dir_colors .inputrc .kshrc .less .my.cnf
+.perltidyrc .profile .tidyrc .vim .forward .colorizerc .psqlrc
+.gitconfig .pandoc
+"
+
+# }}}
+# {{{ Parametros
+while getopts hruV-: options; do
+    case "$options" in
+        h) help;;
+        r) repair=1 ;;
+        u) usage;;
+        V) version ;;
+       \?) usage "Fallo parámetros";;
+        -) if [ "$OPTARG" == "version" -o "$OPTARG" == "help" ]; then 
+               $OPTARG;
+           else
+               usage "Fallo parámetros"
+           fi;;
+    esac
+done
+shift $(( $OPTIND - 1 ))
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+cd ~
+# {{{
+# Dirs
+echo Dirs
+for T in .vimundo local local/bin .ssh
+do
+    if [ -e $T ]; then
+        if [ ! -d $T ]; then
+            printf "%-25s " "Found $T..."
+            echo "It's not a dir. FAIL!"
+            if [[ $repair == 1 ]]; then
+                mv $T ${T/\./}.old
+                mkdir  $T
+                echo Renamed to old and created
+            fi
+        fi
+    else
+        printf "%25s\n"  "NOT found $T. FAIL!"
+        if [[ $repair == 1 ]]; then
+            mkdir $T
+            echo Created
+        fi
+    fi
+done
+# }}}
+# {{{
+# File: .noname
+echo .nonames
+T=.nonames
+if [ -e $T ]; then
+    if [ ! -f $T ]; then
+        printf "%-25s " "Found $T..."
+        echo "It's not a file. FAIL!"
+        if [[ $repair == 1 ]]; then
+            mv $T ${T/\./}.old
+            touch .T
+            echo Renamed to old and created
+        fi
+    fi
+else
+    printf "%25s\n"  "NOT found $T. FAIL!"
+    if [[ $repair == 1 ]]; then
+        touch $T
+        echo Created
+    fi
+fi
+# }}}
+# {{{
+# Links
+echo Links
+for T in $FILES
+do
+    if [ -e $T ]; then
+        if [ ! -L $T ]; then
+            printf "%-25s " "Found $T..."
+            echo "It's not a link. FAIL!"
+            if [[ $repair == 1 ]]; then
+                mv $T ${T/\./}.old
+                T1="etc/$T"
+                T1=${T1/\./}
+                ln -s $T1 $T
+                echo Linked $T to $T1
+            fi
+        fi
+    else
+        printf "%-25s %s\n"  "NOT found $T." "FAIL!"
+        if [[ $repair == 1 ]]; then
+            T1="etc/$T"
+            T1=${T1/\./}
+            ln -s $T1 $T
+            echo Linked $T to $T1
+        fi
+    fi
+done
+# }}}
+# {{{
+# Bash_completion
+T=.bash_completion
+if [ -e $T ]; then
+    if [ ! -L $T ]; then
+        printf "%-25s " "Found $T..."
+        echo "It's not a link. FAIL!"
+        if [[ $repair == 1 ]]; then
+            mv $T ${T/\./}.old
+            T1="etc/$T"
+            T1=${T1/\./}
+            ln -s $T1 $T
+            echo Linked $T to $T1
+        fi
+    fi
+else
+    printf "%-25s %s\n"  "NOT found $T." "FAIL!"
+    if [[ $repair == 1 ]]; then
+        T1="etc/lah_bash_completion"
+        ln -s $T1 $T
+        echo Linked $T to $T1
+    fi
+fi
+# }}}
+# {{{
+# Permissions
+echo Permissions
+chmod go-rwx -R $FILES devel copias var lib \
+    local .vimundo .ssh .pgpass etc bin mio.tgz 2>/dev/null >/dev/null
+# }}}
+echo "Environment prepared"
+exit 0

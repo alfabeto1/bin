@@ -1,0 +1,5 @@
+#!/usr/bin/bash
+sudo /etc/init.d/mldonkey-server stop
+sudo killall mlnet
+sleep 8
+sudo /etc/init.d/mldonkey-server start

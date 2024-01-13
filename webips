@@ -1,0 +1,253 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+
+=encoding utf-8
+
+=head1 NAME
+
+B<webips> - Informa del país de origen de las ips
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item webips [-h|--help|-u|--usage|-V|--version]
+
+=item webips [-v|--verbose] [-t|--test] F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Informa del pais de origen de las ips.
+
+=head1 ARGUMENTS
+
+El fichero es opcional. Indica fichero de access.log alternativo a utilizar.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-t>, B<--test>
+
+No ejecuta. Solo muestra lo que se haría.
+
+=item B<-u>, B<--usage>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>, B<--verbose>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 EXIT STATUS
+
+Listar los posibles valores de salida del programa y las condiciones en que esos
+valores son devueltos.
+
+=head1 FILES
+
+Relación exaustiva de los ficheros utilizados por el programa, como ficheros de
+configuración, ficheros de arranque, o ficheros sobre los que el programa opera.
+Especificar nombre y ruta.
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al
+autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2021 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luis M. Arocha Hernández <lah.data@gmail.com>.
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use Getopt::Long qw/:config no_ignore_case bundling/;
+use CommonFunc qw/:all/;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 0.0 $, 10;
+
+# }}}
+# {{{ Variables
+my %opt;
+my $city        = '';
+my $country     = '';
+my $fileips     = '/home/luis/etc/ipsfile.txt';
+my $filelog     = '/var/log/apache2/access.log';
+my $filequeries = '/home/luis/etc/webintruders-queries.txt';
+my $found       = 0;
+my $org         ='';
+my $total       = 0;
+my %location    = qw//;
+my %country     = qw//;
+my %iporg       = qw//;
+my %ipcity      = qw//;
+my %ipcountry   = qw//;
+my %ips         = qw//;
+my @offending;
+
+# }}}
+# {{{ Parametros
+Getopt::Long::Configure("bundling","no_ignore_case");
+GetOptions (
+            "h|help"       => \$opt{h},
+            "r|response=s" => \$opt{r},
+            "t|test"       => \$opt{t},
+            "u|usage"      => \$opt{u},
+            "v|verbose"    => \$opt{v},
+            "V|version"    => \$opt{V},
+            ) or usage('Fallo parámetros');
+
+help()    if $opt{h};
+usage()   if $opt{u};
+version() if $opt{V};
+
+$filelog = shift || $filelog;
+$opt{r}=$opt{r}|| '404';
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Leer lineas query
+open FILE, $filequeries or die $!;
+while (<FILE>){
+    last if /# LAST/;
+    next if /^#/;
+    chomp;
+    s/\//\\\//g;
+    s/\./\\./g;
+    push @offending, $_;
+}
+close FILE;
+# }}}
+# {{{
+# Leer fichero de ips
+if (open FILE, $fileips ){
+    while (<FILE>){
+        chomp;
+        my $ip;
+        ($ip,$country,$city,$org)= split /:/,$_, 4;
+        $ipcountry{$ip}          = $country;
+        $ipcity{$ip}             = $city;
+        $iporg{$ip}              = $org;
+        $ips{$ip}                = "$country:$city:$org";
+    }
+    close FILE;
+}
+# }}}
+# {{{
+# Procesar fichero access.log o similar
+open FILE, $filelog or die $!;
+while (<FILE>){
+    chomp;
+    $found=0;
+    s/\s+/ /go;
+    #  break each apache access_log record into nine variables
+    my ($vhost,             $clientAddress, $rfc1413,      $username,
+        $localTime,         $httpRequest,   $statusCode,
+        $bytesSentToClient, $referer,       $clientSoftware) =
+    /^(\S+) (\S+) (\S+) (\S+) \[(.+)\] \"(.+)\" (\S+) (\S+) \"(.*)\" \"(.*)\"/o;
+    foreach my $off(@offending){
+        if ($httpRequest =~  /$off/i){
+            $found++;
+            last;
+        }
+    }
+    next if $found;
+    if ($ipcountry{$clientAddress}){
+        $country = $ipcountry{$clientAddress};
+        $city    = $ipcity{$clientAddress};
+        $org     = $iporg{$clientAddress};
+    }   else {
+        ($country,$city,$org)     = get_ip_info($clientAddress);
+        $ipcountry{$clientAddress}= $country   ;
+        $ipcity{$clientAddress}   = $city;
+        $iporg{$clientAddress}    = $org;
+        $ips{"$clientAddress"}    = "$country:$city:$org";
+    }
+    print "$clientAddress / $country / $city / $org / $httpRequest\n" if $opt{v};
+    $country{$country}++;
+    $location{"$country,$city,$org"}++;
+    $total++;
+}
+close FILE;
+
+# }}}
+# {{{
+# Show data
+foreach my $c(sort keys %country){
+    print "$c : $country{$c}\n";
+    foreach my $loc(sort keys %location){
+        next unless $loc =~ /^$c/;
+        my $k = $loc;
+        $loc =~  s/^..,//;
+        print "  $loc : $location{$k}\n";
+    }
+}
+print "TOTAL ACESS: $total\n";
+# }}}
+# {{{
+# Save IPs file
+open OUTPUT, '>', $fileips or die "$!";
+foreach my $ip (sort keys %ips){
+    print OUTPUT "$ip:$ips{$ip}\n";
+}
+close OUTPUT;
+# }}}
+exit 0;
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub get_ip_info {
+    my $ip     =shift;
+    my $city   ='Unknown';
+    my $country='Unknown';
+    my $org    ='Unknown';
+    open CURL, "curl ipinfo.io/$ip 2>/dev/null |" or die $!;
+    while (<CURL>){
+        $city   = $1 if (/"city": "(.*)"/   ); 
+        $country= $1 if (/"country": "(.*)"/); 
+        $org    = $1 if (/"org": "(.*)"/); 
+    }
+    close CURL;
+    return ($country,$city,$org);
+}
+# }}}

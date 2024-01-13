@@ -1,0 +1,22 @@
+#!/bin/bash
+### Comprueba la velocidad de varios servidores DNS
+checkit (){
+    echo -en $1 "\t"
+    (time dig $1 arocha.cf ) 2>&1 |grep real|sed -e 's/real *//'
+    
+}
+echo Cloudflare
+checkit 1.1.1.1
+checkit 1.0.0.1 
+echo Google
+checkit 8.8.8.8
+checkit 8.8.4.4 
+echo OpenDNS
+checkit 208.67.222.222
+checkit 208.67.220.220
+echo Vodafone
+checkit 212.145.4.97
+checkit 212.145.4.98
+echo FreeNom
+checkit 80.80.80.80
+checkit 80.80.81.81

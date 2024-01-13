@@ -1,0 +1,130 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+B<phphelp> - To get help from www.php.net and show in 'less'
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<phphelp> [-h|-u|-V]
+
+=item B<phphelp> -v
+
+=back
+
+=head1 DESCRIPTION
+
+Download help from www.php.net about one keyword. Converts is to txt and show
+it with command 'less'
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h> 
+
+Muestra la información de ayuda completa.
+
+=item B<-u> 
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v> 
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V> 
+
+Muestra la versión del comando.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2015 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+function usage {
+    if test "$*"; then
+        echo $*
+    fi
+    pod2usage -verbose 1 $0
+    exit 1
+}
+
+# }}}
+# {{{
+function help {
+    pod2text -c $0
+    exit 1
+}
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Variables
+VERSION="$Revision: 3.1 $"
+VERSION=${VERSION#:\ }
+VERSION=${VERSION%\ \$}
+
+# }}}
+# {{{ Parametros
+while getopts huvV options; do
+    case "$options" in
+        h) help ;;
+        u) usage ;;
+        v) verbose=on ;;
+        V) echo "${0/*\//} - $VERSION";exit 1;;
+       \?) usage "Fallo parámetros" ; exit 1 ;;
+    esac
+done
+shift $(( $OPTIND - 1 ))
+test $verbose && echo ARGUMENTOS: $*
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+command=$1
+wget -q http://www.php.net/$command -O -|lynx -stdin -dump| \
+    perl -ne "s/\[\d+\]//;\$f++ if /^(   )?$command/i;\$f=0 if /(^not[ae]s|Copyright|User contributed|Full website)/i;print if \$f;"| \
+    less
+exit 0
+
+# }}}

@@ -1,0 +1,11 @@
+#!/usr/bin/bash
+# Devuelve 1 si el jpg tiene video, en caso contrario devuelve 0
+file=$1
+if exiftool $file|grep -q Embedded; then
+    # echo $file si
+    exit 0
+else
+    # echo $file no
+    exit 1
+fi
+

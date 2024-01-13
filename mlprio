@@ -1,0 +1,8 @@
+#!/bin/bash
+### Cambia la prioridad de un fichero de descarga de mldonkey
+# Luís M. Arocha Hernández
+if [ ! -d /pub/mldonkey ]; then
+    echo Fail. No mldonkey here.
+    exit 1
+fi
+ml priority $@ | grep -a Setting

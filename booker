@@ -1,0 +1,664 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<booker> - Cataloga libros por autor en los directorios correspondientes
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item booker [-h|--help|-u|-V|--version]
+
+=item booker -c
+
+=item booker [-v] [-t] [-a]
+
+=item booker [-v] [-t] [-l]
+
+=item booker [-v] [-t] [-b F<DIR>] [-f] [-x] AUTOR...
+
+=item booker -r F<expresion regular>
+
+=back
+
+=head1 DESCRIPTION
+
+Busca en el directorio actual los documentos que pertenecen al autor que se
+indique y los lleva a su directorio en la carpeta de Autores.
+
+Crea el directorio de destino si es necesario.
+
+Por ejemplo, con el comando B<booker Smith_John>, se crearía el
+directorio B<BASE/S/Smith_John> y se moverían a él todos los ficheros
+que contengan Smith_John (o una variación del mismo). En este caso se
+moverían todos los ficheros con Smith_John, Smith-John, John_Smith,
+"John Smith", Smith.John, y similares.
+
+No trata autores con longitud de nombre inferior a 7 letras, a menos que se
+use la opción -f.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-a>
+
+Se ejecuta el proceso  para cada uno de los autores conocidos,
+con lo que todos los ficheros del directorio actual, que esté
+identificado por autor será movido a su directorio correspondiente.
+
+La lista de los autores conocidos se ordena de más largo a más corto,
+antes de empezar a separar.
+
+=item B<-b DIR> (existing directory name)
+
+Directorio base donde se crearan los directorios. Cuando se especifica -b
+no se crea directorio de letra.
+
+=item B<-c>
+
+Clean. Limpia el arbol de libros por autores.
+
+De la estructura de directorios de libros, se eliminan documentos
+inútiles (thumbs.db, cover.jpg, etc). También se localizan aquellos
+libros que existen en varios formatos (F<azw>, F<mobi>, F<epub>, F<pdf>,
+etc), y se borran aquellos formatos menos deseables.
+
+Los formatos que más nos interesan son F<epub> y F<mobi>.
+
+=item B<-f>
+
+Force. Trata tambien los autores de menos de 7 letras.
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-l>
+
+Saca una lista de los libros, ordenados y con una linea de separacion
+por directorio.
+
+Los lista con el simbolo F<#> al inicio, para que el fichero pueda ser
+tratado como un script con un monton de comentarios.
+
+La idea es ir mediendo comandos de rectificación en este script para
+arreglar nombres, borrar ficheros, etc y después ejecutarlo.
+
+=item B<-r>
+
+Lista los ficheros del directorio actual que cumplen la expresión
+regular, con sus datos, ordenados por extensión y nombre y permite
+borrarlos.
+
+=item B<-t>
+
+Test mode. No ejecuta ningún cambio, solo muestra lo que se haria.
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=item B<-x>
+
+Cambia Autor_Apellido por Apellido_Autor.
+
+=back
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.2 $, 10;
+
+# }}}
+# {{{ Variables
+my $autores;
+my $base = '/pub/Books';
+if ( $ENV{HOSTNAME} eq 'ESPLPA10L336303' ) {
+    $base = '~/DATOS/Books';
+}
+my @lista;
+my %valid  = map { $_ => 1 } qw/epub mobi/;
+my $dir;
+my $file;
+my $name;
+my $name2;
+my $ext;
+my %opt;
+
+# }}}
+# {{{ Parametros
+getopts( 'ab:cfhlr:tuvVx', \%opt ) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+usage("Las opciones -a, -c, -l y -r son excluyentes")
+    if ( $opt{a} + $opt{c} + $opt{l} + ($opt{r}?1:0) > 1 );
+usage() unless @ARGV or $opt{r} or $opt{a} or $opt{c} or $opt{l};
+usage() if $opt{r} and @ARGV;
+$base    = $opt{b} if $opt{b};
+$autores = $opt{b}?$base:"$base/Autores";
+die "Base $base no es un directorio.\n" unless -d $base;
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Procesamos según opciones
+if ( $opt{l} ) {
+# {{{
+
+    # List all books
+    my $dirant = '';
+    my $key;
+    my @f;
+
+    # Identificar todos los ficheros
+    chdir $base or die $!;
+    open LISTA, "find $base -type f|" or die $!;
+    $base =~ s/\//\\\//;
+    while (<LISTA>) {
+        chomp;
+        s/$base\///;
+        push @lista, $_;
+    }
+    close LISTA;
+
+    # Ordenar y mostrar
+    foreach ( sort @lista ) {
+        @f = split /\//;
+        if ( @f == 1 ) {
+            $key = '?';
+        } elsif ( @f == 2 ) {
+            $key = "$f[0]";
+        } elsif ( @f == 3 ) {
+            $key = "$f[0]$f[1]";
+        } elsif ( @f >= 3 ) {
+            $key = "$f[0]$f[1]$f[2]";
+        }
+        if ( $dirant and $key ne $dirant ) {
+            print "\n";
+        }
+        $dirant = $key;
+        my $s = size_of($_);
+        print "# $_ $s\n";
+    }
+# }}}
+} elsif ( $opt{a} ) {
+# {{{
+    # Booking all
+    # print "Seleccionando autores\n" if $opt{v};
+    open LISTA, "find $autores -type d|" or die $!;
+    while (<LISTA>) {
+        chomp;
+        next if /Varios_Autores/;
+        next if /Sin_Clasificar/;
+        s/^.*.Autores...//;
+        next unless length($_);
+        next if /\//;
+        push @lista, $_;
+    }
+    close LISTA;
+
+    # Ejecutar separa para cada uno de ellos
+    foreach ( sort { length($b) <=> length($a) } @lista ) {
+        booking($_);
+    }
+# }}}
+} elsif ( $opt{c} ) { do_clean($autores);
+} elsif ( $opt{r} ) { do_clean_re($opt{r});
+} else {
+# {{{
+    # Archive author
+    foreach my $i (@ARGV) {
+        booking($i);
+    }
+# }}}
+}
+exit 0;
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub booking {
+    my $i = shift || return;
+    return unless length($i) > 7 or $opt{f};
+    # print "booking $i\n" if $opt{v};
+    $i =~ s/\/$//;
+    $i =~ s/\-$//;
+    $i =~ s/_$//;
+    $i =~ s/.*\///;
+    if ($opt{x}){
+        if ($i=~ /.*_.*_/){
+            return
+        }
+        $i =~ s/^(.*)_(.*)/$2_$1/;
+    }
+    my $n     = clave($i);
+    my $letra = $opt{b} ? '' : substr( $n, 0, 1 ) . '/';
+    my $dest  = "$autores/$letra$n";
+    return if crea_dir($dest);
+    my $n1 = limpia($i);
+    my $n4 = limpia( r($i) );
+    my $n5 = limpia( r(r($i)) );
+    my $n6 = limpia( r(r(r($i))) );
+    my $n7 = limpia( r(r(r(r($i)))) );
+    opendir DIR, '.' or die;
+
+    while ( my $n2 = readdir(DIR) ) {
+        next unless -e $n2;
+        my $n3 = limpia($n2);
+        if ( $n3 =~ /$n1/ or $n3 =~ /$n4/ or $n3 =~ /$n5/ or $n3 =~ /$n6/ or $n3 =~ /$n7/) {
+            mover( $n2, $dest );
+        }
+    }
+    closedir DIR;
+}
+
+# }}}
+# {{{
+sub do_clean {
+    my $autores = shift;
+    my $text    = '';
+    my $dir     = '';
+    my $file    = '';
+    my $dirant  = '';
+    my %otros;
+    my %cuentavalidos;
+    my %existe  = qw//;
+    $opt{c}=1;
+    open FILE, "find $autores -type f|" or die $!;
+
+    while (<FILE>) {
+        chomp;
+        /(.*)\/(.*)/;
+        $dir  = $1;
+        $file = $2;
+        if ( $file =~ /^(thumbs.db|\.jpg|\.gif|\.png)$/i ) {
+            $text .= "# Es un grafico\n";
+            $text .= "     rm -v $_\n";
+            next;
+        }
+        if ( $file !~ /\./ ) {
+            $text .= "# No tiene extension\n";
+            $text .= "       file  $_\n";
+            next;
+        }
+        if ( $dir ne $dirant ) {
+            foreach my $n (keys %otros) {
+                if ($cuentavalidos{$otros{$n}} >=2){
+                    $text .= "# Ya hay bastantes $n: ". $cuentavalidos{$otros{$n}}."\n";
+                    $text .= "     rm -v $dirant/$n\n";
+                }
+            }
+            $text .= "#Directorio $dir\n" if $opt{v};
+            $dirant        = $dir;
+            %otros         = qw//;
+            %cuentavalidos = qw//;
+            %existe        = qw//;
+        }
+        $file =~ /(.*)\.(.*)/;
+        $name  = $1;
+        $ext   = $2;
+        $name2 = simplify( $name, $dir );
+        #if ( !$name2 ) {
+        #    $text .= "# Inutil $dir/$file\n";       # if $opt{v};
+        #    $text .= "#     rm -vi $dir/$file\n";
+        #}
+        if ( $existe{"$dir/$name2.$ext"} ) {
+            my $f  = "$dir/$file";
+            my $n1 = size_of("$f");
+            my $n2 = size_of( $existe{"$dir/$name2.$ext"} );
+            if ( $n2 and $n1 > $n2 ) {
+                $f = $existe{"$dir/$name2.$ext"};
+            }
+            $text .= "#---------------------------------------\n";
+            $text .= "# Repetido $dir/$file \n";
+            $text .= "#          " . $existe{"$dir/$name2.$ext"} . "\n";
+            $text .= "# Borramos $f por menor tamaño\n";
+            $text .= "     rm -v $f\n";
+            $text .= "\n";
+            next;
+        } else {
+            if ($valid{$ext}){
+                $text .= "#    Valido $file\n" if $opt{v};
+                $existe{"$dir/$name2.$ext"}= "$dir/$file";
+                $cuentavalidos{$name2}++;
+            }
+        }
+        if ( !$valid{$ext} ) {
+            $text .= "# No valido $file\n" if $opt{v};
+            $otros{$file}= $name2;
+        }
+    }
+    close FILE;
+    # Repetir proceso para el ultimo directorio
+    foreach my $n (keys %otros) {
+        if ($cuentavalidos{$otros{$n}} >=2){
+            $text .= "# Ya hay bastantes $n: ". $cuentavalidos{$otros{$n}}."\n";
+            $text .= "     rm -v $dirant/$n\n";
+        }
+    }
+    if ($opt{t}){
+        print $text;
+    } else {
+        system $text;
+    }
+}
+
+# }}}
+# {{{
+sub do_clean_re {
+    my $re=shift;
+    my @files;
+    my $n=0;
+    my $v='p';
+    foreach my $f(sort glob('*')){
+        next unless -f $f;
+        next unless $f=~ /$re/i;
+        push @files, $f;
+    }
+    @files = sort {sorting($a,$b)} @files;
+    while (1){
+        if ($v eq 'p'){
+            $n=0;
+            foreach my $f(@files){
+                $n++;
+                next unless $f;
+                my $size = size_of($f);
+                my $name = $f;
+                my $ext  = '';
+                if ($name=~ s/(.*)\.(.*)/$1/){
+                    $ext = $2;
+                }
+                printf "%2d:%7d %s %s\n",$n,$size,$ext,$name;
+            }
+        }
+        print "Borrar --> ";
+        $v = <>;
+        chomp $v;
+        if ( $v =~ /^ *(\d+)/ ) {
+            $v=$1;
+            $v--;
+            if (defined $files[$v]){
+                unlink $files[$v];
+                $files[$v]= '';
+            } else {
+                print "No se encuentra $v\n";;
+            }
+        } elsif ($v eq 'p') {
+        } elsif ($v eq '' or $v eq 'q') {
+            last;
+        }
+    }
+}
+
+# }}}
+# {{{
+sub clave {
+    my $t = shift;
+#     $t =~ s/\x60/_/g;
+#     $t =~ s/\x7e/_/g;
+#     $t =~ s/\x81/ñ/g;
+#     $t =~ s/\x82/e/g;
+#     $t =~ s/\x84/a/g;
+#     $t =~ s/\x87/ç/g;
+#     $t =~ s/\x8a/e/g;
+#     $t =~ s/\x8b/i/g;
+#     $t =~ s/\x90/E/g;
+#     $t =~ s/\xa0/a/g;
+#     $t =~ s/\xa1/i/g;
+#     $t =~ s/\xa2/o/g;
+#     $t =~ s/\xa3/u/g;
+#     $t =~ s/\xa7/_/g;
+#     $t =~ s/\xaa//g;
+#     $t =~ s/\xb5/a/g;
+#     $t =~ s/\xba//g;
+#     $t =~ s/\xc1/A/g;
+#     $t =~ s/\xc3/A/g;
+#     $t =~ s/\xc9/E/g;
+#     $t =~ s/\xcd/I/g;
+#     $t =~ s/\xd3/O/g;
+#     $t =~ s/\xda/U/g;
+#     $t =~ s/\xdd/A/g;
+#     $t =~ s/\xe1/a/g;
+#     $t =~ s/\xe3/A/g;
+#     $t =~ s/\xe9/e/g;
+#     $t =~ s/\xed/i/g;
+#     $t =~ s/\xef/_/g;
+#     $t =~ s/\xf3/o/g;
+#     $t =~ s/\xf6/o/g;
+#     $t =~ s/\xf8/_/g;
+#     $t =~ s/\xfa/u/g;
+    $t =~ s/Á/a/g;
+    $t =~ s/É/e/g;
+    $t =~ s/Í/i/g;
+    $t =~ s/Ó/o/g;
+    $t =~ s/Ú/u/g;
+    $t =~ s/À/A/g;
+    $t =~ s/È/E/g;
+    $t =~ s/Ì/I/g;
+    $t =~ s/Ò/O/g;
+    $t =~ s/Ù/U/g;
+    $t =~ s/Â/I/g;
+    $t =~ s/Ê/E/g;
+    $t =~ s/Î/I/g;
+    $t =~ s/Ô/O/g;
+    $t =~ s/Û/U/g;
+    $t =~ s/Ä/I/g;
+    $t =~ s/Ë/E/g;
+    $t =~ s/Ï/I/g;
+    $t =~ s/Ö/O/g;
+    $t =~ s/Ü/U/g;
+    $t =~ s/á/a/g;
+    $t =~ s/é/e/g;
+    $t =~ s/í/i/g;
+    $t =~ s/ó/o/g;
+    $t =~ s/ú/u/g;
+    $t =~ s/à/a/g;
+    $t =~ s/è/e/g;
+    $t =~ s/ì/i/g;
+    $t =~ s/ò/o/g;
+    $t =~ s/ù/u/g;
+    $t =~ s/â/i/g;
+    $t =~ s/ê/e/g;
+    $t =~ s/î/i/g;
+    $t =~ s/ô/o/g;
+    $t =~ s/û/u/g;
+    $t =~ s/ä/i/g;
+    $t =~ s/ë/e/g;
+    $t =~ s/ï/i/g;
+    $t =~ s/ö/o/g;
+    $t =~ s/ü/u/g;
+    $t =~ s/\?//g;
+    $t =~ s/\!//g;
+    $t =~ s/\¿//g;
+    $t =~ s/\¡//g;
+    $t =~ s/\|//g;
+    $t =~ s/ª/a/g;
+    $t =~ s/º/o/g;
+    $t =~ s/^(.)/\U$1/g;
+    $t =~ s/_(.)/_\U$1/g;
+    $t =~ s/-(.)/-\U$1/g;
+    $t =~ s/-/_/g;
+    $t =~ s/\./_/g;
+    $t =~ s/\/$//g;
+    return $t;
+}
+
+# }}}
+# {{{
+sub crea_dir {
+    my $dest = shift;
+    my $cmd  = '';
+    if ( -e $dest ) {
+        if ( !-d $dest ) {
+            print "#El destino existe y es un fichero $dest\n";
+            print "#No se realiza el cambio\n";
+            return 1;
+        }
+    } else {
+        $cmd = "mkdir -p $dest";
+        print "$cmd\n" if $opt{v};
+        system $cmd unless $opt{t};
+    }
+    return 0;
+}
+
+# }}}
+# {{{
+sub limpia {
+    my $t = shift;
+    $t =~ s/Á/a/g;
+    $t =~ s/É/e/g;
+    $t =~ s/Í/i/g;
+    $t =~ s/Ó/o/g;
+    $t =~ s/Ú/u/g;
+    $t =~ s/á/a/g;
+    $t =~ s/é/e/g;
+    $t =~ s/í/i/g;
+    $t =~ s/ó/o/g;
+    $t =~ s/ú/u/g;
+    $t =~ s/á/a/g;
+    $t =~ s/è/e/g;
+    $t =~ s/ì/i/g;
+    $t =~ s/ò/o/g;
+    $t =~ s/ù/u/g;
+    $t =~ s/ï/i/g;
+    $t =~ s/ü/u/g;
+    $t =~ s/ñ/n/g;
+    $t =~ s/N/n/g;
+    $t =~ s/(.)/\L$1/g;
+    $t =~ s/\.//g;
+    $t =~ s/_//g;
+    $t =~ s/-//g;
+    return $t;
+}
+
+# }}}
+# {{{
+sub mover {
+    my $orig = shift;
+    my $dest = shift;
+    my $cmd;
+    if ( -d $orig ) {
+        $cmd = "mv  $orig/* $dest/";
+    } else {
+        $cmd = "mv $orig $dest/";
+    }
+    print "$orig --> $dest\n" if $opt{v};
+    system $cmd unless $opt{t};
+}
+
+# }}}
+# {{{
+sub r {
+    my $t = shift;
+    $t =~ s/(.*)_(.*)/$2_$1/;
+    return $t;
+}
+
+# }}}
+# {{{
+sub simplify {
+    my $t   = shift;
+    my $dir = shift;
+    $t =~ s/[_-]?[cv][_-]?\d?[_-]\d\././i;
+    $t =~ s/([A-Z])[_-]?1[_-]0/$1./i;
+    $dir =~ s/.*\///;
+    $dir = '' if $dir eq '.';
+    if ($dir){
+        my $dir1 = $dir;
+        $dir1 =~ s/(.*)_(.*)/$2_$1/;
+        my $dir2 = $dir1;
+        $dir2 =~ s/(.*)_(.*)/$2_$1/;
+        my $dir3 = $dir2;
+        $dir3 =~ s/(.*)_(.*)/$2_$1/;
+        my $dir4 = $dir3;
+        $dir4 =~ s/(.*)_(.*)/$2_$1/;
+        $dir1 =~  s/_/.?/g;
+        $dir2 =~  s/_/.?/g;
+        $dir3 =~  s/_/.?/g;
+        $dir4 =~  s/_/.?/g;
+        $t   =~ s/$dir1//gi;
+        $t   =~ s/$dir2//gi;
+        $t   =~ s/$dir3//gi;
+        $t   =~ s/$dir4//gi;
+    }
+    $t = lc($t);
+    $t =~ s/^anon-//i;
+    $t =~ s/premio.planeta//i;
+    $t =~ s/contratapa//i;
+    $t =~ s/tapa//i;
+    $t =~ s/contraportada//i;
+    $t =~ s/portada//i;
+    $t =~ s/\Wc\W\d$//;
+    $t =~ s/\Wv\W\d$//;
+    $t =~ s/ //g;
+    $t =~ s/_//g;
+    $t =~ s/-//g;
+    $t =~ s/^\d+//;
+
+    #$t=~ s/\d+$//g;
+    return $t;
+}
+
+# }}}
+# {{{
+sub sorting {
+    my $a=shift;
+    my $b=shift;
+    my $aext='';
+    my $bext='';
+    if ($a=~ /(.*)\.(.*)/){
+        $aext = $2;
+    }
+    if ($b=~ /(.*)\.(.*)/){
+        $bext = $2;
+    }
+    if ($aext eq $bext){
+        return (size_of ($a) <=> size_of($b));
+    } else {
+        return ($aext cmp $bext);
+    }
+}
+
+# }}}

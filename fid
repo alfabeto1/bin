@@ -1,0 +1,634 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<fid> - Busca imágenes duplicadas en el directorio actual
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<fid> [-h|--help|-u|-V|--version]
+
+=item B<fid> -r
+
+=item B<fid> [-a F<program>] [-t F<NUM>] [-s F<regexp>] [-U] [-d F<DIR>] [-f F<FILE>] [-v]
+
+=item B<fid> [[-p] FILE1 FILE2]
+
+=back
+
+=head1 DESCRIPTION
+
+=head2 strengths
+
+Recognizes similar pictures with 98% accuracy when the pictures actually
+have unique features; generates collection files for easy managing of
+dupes.
+
+=head2 weaknesses
+
+Lots of false positives on contact sheets and shots of things like ocean
+horizons, which all reduce to basically this:
+
+   1111111111111111
+   1111111111111111
+   1111111111111111
+   1111111111111111
+   1111111111111111
+   0000000000000000
+   0000000000000000
+   0000000000000000
+   0000000000000000
+   0000000000000000
+
+slows down geometrically with larger image collections (>18 hours for
+25144 images, ~15 minutes for 2500)
+
+i've tried moving to an 8x8x8 bit array (twice the size but allows
+greyscale comparisons) and it actually causes more false positives,
+probably because 8x8 pixels just provides too little detail.
+
+=head1 ARGUMENTS
+
+=over 4
+
+=item F<file1>, F<file2>
+
+Diff just those two files, using -v if present (other options ignored if
+files are specified)
+
+=back
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-a> F<program>
+
+Launch F<program> (in bg) to view each set of dupes.
+
+=item B<-d> F<DIR>
+
+Scan F<DIR> instead of current directory.
+
+=item B<-f> F<FILE>
+
+Use F<FILE> as image fingerprint database.
+
+=item B<-g> F<FILE>
+
+Create file collection F<FILE> of duplicates.
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-p>
+
+Only valid when files specified; prints the hex of the
+actual fingerprint of each file.
+
+=item B<-s> F<regexp>
+
+Regular expresion to check a subset of files.
+
+=item B<-r>
+
+Rescan fingerprints of all files in directory.
+
+=item B<-t> F<num> (decimal)
+
+Use F<num> as threshold% of similarity.
+
+DEFAULT: 90.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-U>
+
+Scan fingerprints of new files. Supress deleted files
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 DEPENDENCES
+
+Es necesario tener instalado el paquete F<imagemagick>, y el módulo de
+perl F<Image::Magick>
+
+para que funcione.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Basado en un trabajo de rob kudla.
+
+    Copyright 2001 Rob Kudla - http://www.kudla.org/raindog
+    This program is distributed under the terms of the GNU Public License.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Pragmas y modulos
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+use Image::Magick;
+
+# }}}
+# {{{ Constantes
+our $VERSION = substr q$Revision: 3.1 $, 10;
+my $prog     = $0 . '';
+$prog        = substr($prog,rindex($prog,'/') + 1) if rindex($prog,'/') >= 0;
+
+# }}}
+# {{{ Variables
+my %opt;
+my $curdir = `pwd`;
+chop $curdir;
+my @countbits_arr;
+my @keys;
+my %PFP;
+my %newlist;
+my @list;
+
+# get columns if we can
+my  $cols = `tput cols`;
+$cols += 0;
+$cols = 80 if $cols == 0;
+
+# }}}
+# {{{ Argumentos
+getopts( 'a:d:f:g:hprs:t:uUvV', \%opt ) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+$opt{file1} = shift ||'';
+$opt{file2} = shift ||'';
+$opt{d}     = $opt{d}||'.';
+$opt{f}     = $opt{f}||'imagedupes-db2.txt';
+$opt{f}     = "$opt{d}/$opt{f}" unless $opt{f} =~ "/";
+$opt{t}     = $opt{t}||90;
+$opt{s}     = $opt{s}||'';
+usage("O dos ficheros o ninguno") if ($opt{file1} && !$opt{file2});
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+do_init();
+# Process options
+if ($opt{file1}){
+    pair();
+} elsif ($opt{r} || !-s $opt{f}) {
+    rescan();
+} elsif ($opt{U}){
+    update();
+} else {
+    whole_tree();
+}
+exit 0;
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub base2 {
+    # base2: converts binary string to list of 1's and 0's not unlike
+    # pbm used to provide in text mode
+    my $inval = shift;
+    my $outval;
+    for (my $i = 0; $i < length($inval); $i++) {
+        for (my $j = 7; $j >= 0; $j--) {
+            $outval .= (ord(substr($inval,$i,1)) and (2 ** $j) ? 1 : 0);
+        }
+    }
+    $outval;
+}
+
+# }}}
+# {{{
+sub _countbits {
+# counts the 1 bits in a binary string (doesn't use base2)
+    my $inval  = shift;
+    my $outval = 0;
+    for (my $i = 0; $i < length($inval); $i++) {
+        for (my $j = 7; $j >= 0; $j--) {
+            my $bit = (ord(substr($inval,$i,1)) & (2 ** $j) ? 1 : 0);
+            $outval += $bit;
+        }
+    }
+    $outval;
+}
+
+# }}}
+# {{{
+sub countbits {
+    my $inval = shift;
+    my $outval = 0;
+    for (my $i = 0; $i < length($inval); $i++) {
+            $outval += $countbits_arr[ord(substr($inval,$i,1))];
+    }
+    $outval;
+}
+
+# }}}
+# {{{
+sub do_init{
+    # set up countbits array
+    for (my $i = 0; $i < 256; $i++) {
+        $countbits_arr[$i] = _countbits (chr($i));
+    }
+
+}
+
+# }}}
+# {{{
+sub difflog {
+    # used to be a debug thing, now handles the gqvfile output.
+    return undef unless $opt{g};
+    my $arg = shift;
+    $arg    =~ s/^\.\//$curdir\//;
+    open DIFFLOG, ">>$opt{g}";
+    print DIFFLOG "$arg\n";
+    close DIFFLOG;
+}
+
+# }}}
+# {{{
+sub getfingerprint {
+    #  here's a good a place as any to document the algorithm.  it's not
+    #  so much an algorithm as a philosophy, it's kind of too lame to be
+    #  an algorithm.  suggestions for improvement are very welcome.
+    #  1. read file.
+    #  2. standardize size by resampling to 160x160.
+    #  3. grayscale it. (reducing saturation seems faster than quantize.)
+    #  4. blur it a lot. (gets rid of noise.  we're going down 10x more
+    #     anyway) adding this nudges down false dupes about 10% and makes
+    #     marginal dupes (e.g. big gamma difference) show up about 10%
+    #     higher.
+    #  5. spread the intensity out as much as possible (normalize.)
+    #  6. make it as contrasty as possible (equalize.) this is for those
+    #     real dark pictures that someone has slapped a pure white logo on.
+    #     yes, i tested this thoroughly on pr0n!
+    #  7. resample again down to 16x16.  I wanted to use a mosaic/pixelate
+    #     kind of thing but hopefully imagemagick's resample function works
+    #     roughly the same way.
+    #  8. reduce to 1bpp (threshold using defaults)
+    #  9. convert to pbm, er, um, raw mono
+    #  10. save out to database as hex string containing raw image data
+    #  11. when comparing, convert each file pair's thumbprints back to
+    #      binary and xor them.
+    #  12. count the 1 bits in the result to approximate similarity.
+
+    my $image = shift;
+    my $file  = shift;
+    my (@blobs, $img);
+    $image->Read($file);
+    $#$image = 0;
+    $image->Sample("320x240!");
+    $image->Modulate(saturation=>-100);
+    $image->Blur(factor=>99);
+    $image->Normalize();
+    $image->Equalize();
+    $image->Sample("32x24");
+    $image->Threshold();
+    $image->Set(magick=>'mono');
+    @blobs = $image->ImageToBlob();
+    if(not defined ($blobs[0])) {
+        warn("got undefined blobs for $file\n");
+    } else {
+        $img = $blobs[0];
+    }
+    # free image but don't delete object.
+    undef @$image;
+    $img||'';
+}
+
+# }}}
+# {{{
+sub pair{
+    # do file1 and file2
+    print "Pair\n" if $opt{v};
+    return;
+    my $image = Image::Magick->new;
+    my $fp1   = getfingerprint($image, $opt{file1});
+    my $fp2   = getfingerprint($image, $opt{file2});
+    # xor the two binary strings to find differences
+    my $fpdiff = $fp1 ^ $fp2;
+
+    # print fingerprints if -p specified.
+    if ($opt{p}) {
+        my $i;
+        print "$opt{file1}:";
+        for ($i = 0; $i < length($fp1); $i++) {
+            # convert each byte of pbm to a hex pair.
+            print sprintf("%02x", ord(substr($fp1,$i,1)));
+        }
+        print "\n";
+        print "$opt{file2}:";
+        for ($i = 0; $i < length($fp2); $i++) {
+            # convert each byte of pbm to a hex pair.
+            print sprintf("%02x", ord(substr($fp2,$i,1)));
+        }
+        print "\n";
+
+        print "Difference:";
+        for ($i = 0; $i < length($fpdiff); $i++) {
+            # convert each byte of pbm to a hex pair.
+            print sprintf("%02x", ord(substr($fpdiff,$i,1)));
+        }
+        print "\n";
+
+    }
+
+    # how many bits are different?  number and %
+    my $diffbits = countbits($fpdiff);
+    my $diffpct  = sprintf("%0.2f",(1-($diffbits/256))*100);
+    print "$opt{file1} $opt{file2}: seem to be $diffpct\% similar.\n";
+
+    # launch the viewer if the user wanted us to
+    if (defined($opt{a})) {
+        my $cmd = "$opt{a} '$opt{file1}' '$opt{file2}'";
+        system $cmd;
+    }
+
+}
+
+# }}}
+# {{{
+sub quote {
+    # unquote percents and colons in our db file.
+    my $t = shift||'';
+    $t =~ s/\%/\%25/g;
+    $t =~ s/\:/\%3A/g;
+    return $t;
+}
+
+# }}}
+# {{{
+sub save {
+# save: create dbfile
+    print "Saving file \n" if $opt{v};
+    open IMGFP, ">$opt{f}";
+    foreach (sort keys %newlist){
+        print IMGFP $_ .":";
+        my $img = $newlist{$_};
+        for (my $i = 0; $i < length($img); $i++) {
+            # convert each byte of pbm to a hex pair.
+            print IMGFP sprintf("%02x", ord(substr($img,$i,1)));
+        }
+        print IMGFP "\n";
+    }
+    close IMGFP;
+}
+
+# }}}
+# {{{
+sub rescan {
+    print "Scanning fingerprints from $opt{d} into $opt{f}.\n" if $opt{v};
+
+    # get whole tree
+    # put tree into array
+    my $list = `find $opt{d} -type f | grep -v '\.thumbs'| grep -v '\.cache'|grep -v html\$|grep -v \.pl\$|sort`;
+    @list = split "\n", $list;
+
+    # get imagemagick object
+    my $image = Image::Magick->new;
+
+    # create dbfile
+    open IMGFP, ">$opt{f}";
+
+    # max value for our lame little statusbar
+    my $numfiles = $#list + 1;
+    my $curfile  = 0;
+
+    # traverse the array.
+    foreach my $file (@list) {
+        $curfile++;
+        # erase current screen line
+        system("tput el");
+        # build lame little status bar
+        my $outputline = sprintf("[%04d/%04d] 0%%%s100%%",
+                                 $curfile, $numfiles, statusbar($curfile, $numfiles));
+        $outputline .= substr($file, 0, $cols - length($outputline) - 1);
+        print "$outputline\n";
+        # move cursor back up a line
+        # I couldn't just use \r - it only updated like every 15 iterations
+        # apparently the linux console only refreshes on a \n
+        system("tput cuu1");
+        # check what file thinks the file is
+        my $format   = '';
+        my $filetype = `file "$file"`;
+        if ($filetype =~ / JPEG /) {
+            my $img = getfingerprint($image, $file);
+            my $filename = quote($file);
+            # only save if the image made a valid pbm.
+            if (defined($img) && length($img) > 0) {
+                print IMGFP "$filename:";
+                for (my $i = 0; $i < length($img); $i++) {
+                    # convert each byte of pbm to a hex pair.
+                    print IMGFP sprintf("%02x", ord(substr($img,$i,1)));
+                }
+                print IMGFP "\n";
+          } elsif (!defined($img)) {
+                warn "warning: unable to get fingerprint of $file.\n";
+          }
+
+        }
+    }
+    close IMGFP;
+    print "\n";
+}
+
+# }}}
+# {{{
+sub statusbar {
+    # prints 0 to 50 dots based on $cur/$fin (arg0/arg1)
+    my $cur = shift;
+    my $fin = shift;
+    my $dots = int(($cur/$fin)*50);
+    my $blks = 50 - $dots;
+    my $outline = ("." x ($dots)) . (" " x $blks);
+    $outline;
+}
+
+# }}}
+# {{{
+sub update {
+    print "Updating fingerprints from $opt{d} into $opt{f}.\n" if $opt{v};
+    open IMGFP, "<$opt{f}";
+    # load db into hash
+    while (my $line = <IMGFP>) {
+        chop $line;
+        my ($key,$fp) = split(":",$line);
+        # remember, : and % are escaped
+        $key = unquote($key);
+        $PFP{$key} = pack("H*", $fp);
+    }
+    close IMGFP;
+
+    # get whole tree. put tree into array
+    my $list = `find $opt{d} -type f | grep -v txt\$| grep -v '\.thumbs'| grep -v '\.cache'| grep -v html\$| grep -v \.pl\$| sort`;
+    @list = split "\n", $list;
+
+    # get imagemagick object
+    my $image = Image::Magick->new;
+
+    # max value for our lame little statusbar
+    my $numfiles = $#list + 1;
+    my $curfile  = 0;
+
+    # traverse the array.
+    foreach my $file (@list) {
+        $curfile++;
+        # erase current screen line
+        system("tput el");
+        # build lame little status bar
+        my $outputline = sprintf("[%04d/%04d] 0%%%s100%%",
+                                 $curfile, $numfiles,
+                                 statusbar($curfile, $numfiles));
+        $outputline .= substr($file, 0, $cols - length($outputline) - 1);
+        print "$outputline\n";
+        # move cursor back up a line
+        # I couldn't just use \r - it only updated like every 15 iterations
+        # apparently the linux console only refreshes on a \n
+        system("tput cuu1");
+        # check what file thinks the file is
+
+        if (defined $PFP{$file}){
+            $newlist{$file}=$PFP{$file};
+        } else {
+            my $format   = '';
+            my $filetype = `file "$file"`;
+            if ($filetype =~ / JPEG /){
+                my $img      = getfingerprint($image, $file);
+                my $filename = quote($file);
+                # only save if the image made a valid pbm.
+                if (defined($img)  && length($img) > 0) {
+                    $newlist{$filename}=$img;
+                } elsif (!defined($img)) {
+                    warn "warning: unable to get fingerprint of $file.\n";
+                }
+            }
+        }
+    }
+    save();
+    print "\n";
+}
+
+# }}}
+# {{{
+sub unquote {
+    my $t = shift|'';
+    $t =~ s/\%3A/\:/g;
+    $t =~ s/\%25/\%/g;
+    return $t;
+}
+
+# }}}
+# {{{
+sub whole_tree{
+    # do whole tree
+    print "Finding duplicates in $opt{d}, threshold $opt{t}%.\n";
+    my $re = $opt{s};
+    my $line;
+    my $key;
+    my $fp;
+    my %ALREADYDIFF;
+
+    # load db into hash
+    open IMGFP, "<$opt{f}";
+    while ($line = <IMGFP>) {
+        chop $line;
+        ($key,$fp) = split(":",$line);
+        next if $fp =~ /^f+$/;
+        $key = unquote($key);
+        next if $re and  $key !~ /$re/i;
+        $PFP{$key} = pack("H*", $fp);
+    }
+    close IMGFP;
+    @keys = keys %PFP;
+    my $i = 0;
+    my $bits_that_can_differ = 256 * (1 - $opt{t} / 100 );
+
+    # traverse the hash
+    foreach my $key (@keys) {
+        # generate lame little status bar
+        print sprintf("[%04d/%04d] 0%%%s100%%\n",
+                      $i, $#keys, statusbar($i, $#keys));
+
+        # move the cursor up a line, see -rescan section
+        system("tput cuu1");
+
+        my $fp1 = $PFP{$key};
+        # check remainder of hash for close matches
+        for (my $j = $i + 1; $j <= $#keys; $j++) {
+            # read pbm data for both entries and unhex
+            my $fp2 = $PFP{$keys[$j]};
+
+            # xor the two binary strings to find differences
+            my $fpdiff = $fp1 ^ $fp2;
+
+            # how many bits are different?  number and %
+            my $diffbits = countbits($fpdiff);
+
+            if ($diffbits <= $bits_that_can_differ) {
+                my $diffpct = sprintf("%0.2f",(1-($diffbits/256))*100);
+
+                # blank line, we're going to tell the user something
+                system("tput el");
+                print "$key $keys[$j]: seem to be $diffpct\% similar.\n";
+
+                # originally this was a log, now it writes out the gqvfile
+                difflog($key)      if not defined($ALREADYDIFF{$key});
+                difflog($keys[$j]) if not defined($ALREADYDIFF{$keys[$j]});
+
+                # and makes sure to only write out each file once
+                $ALREADYDIFF{$key}      = 1;
+                $ALREADYDIFF{$keys[$j]} = 1;
+
+                # launch the viewer if the user wanted us to
+                if (defined($opt{a})) {
+                    my $cmd = "$opt{a} $key $keys[$j]";
+                    system $cmd;
+                }
+            }
+        }
+        $i++;
+    }
+
+    print "\n";
+}
+
+# }}}

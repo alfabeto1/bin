@@ -1,0 +1,176 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+B<fixperms> - Corrige los permisos recursivamente.
+
+=head1 SYNOPSIS
+
+    fixperms
+
+=head1 DESCRIPTION
+
+Directorios: Añade ejecución para propietario y grupo.
+
+Ficheros:
+
+Propietario: añade lectura/escritura. Ejecución igual.
+
+Grupo y otros: Añade lectura, quita escritura y ejecución.
+
+=head1 OPTIONS
+
+Sin opciones.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Variables
+HOSTNAME=`hostname`
+DIR=.
+
+# }}}
+# {{{ Parametros
+if [ "$1" != "" ]; then
+    DIR=$1
+fi
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Directorios
+echo Directorios
+if [ "$HOSTNAME" = "ESPLPA10L336303" ]; then
+    find "$DIR" -type d -name \* -print0 | xargs -0 -r chmod -v u+rwx,g+rwx,o+rx-w|grep -v permanece
+else
+    find "$DIR" -type d -name \* -print0 | xargs -0 -r chmod -v u+rwx,g+rx-w,o+rx-w|grep -v permanece
+fi
+
+# }}}
+# {{{ Ficheros
+echo Ficheros
+find "$DIR" -type f -print0 | xargs -0 -r chmod -v u+rw,g+r-wx,o+r-wx |grep -v permanece
+echo Casos concretos
+find "$DIR" -type f \(\
+       -iname '*.1'     -o \
+       -iname '*.2'     -o \
+       -iname '*.3'     -o \
+       -iname '*.4'     -o \
+       -iname '*.5'     -o \
+       -iname '*.6'     -o \
+       -iname '*.7'     -o \
+       -iname '*.8'     -o \
+       -iname '*.9'     -o \
+       -iname '*.3pm'   -o \
+       -iname '*.afm'   -o \
+       -iname '*.avi'   -o \
+       -iname '*.bmp'   -o \
+       -iname '*.bmp'   -o \
+       -iname '*.chk'   -o \
+       -iname '*.chm'   -o \
+       -iname '*.cnf'   -o \
+       -iname '*.conf'  -o \
+       -iname '*.css'   -o \
+       -iname '*.csv'   -o \
+       -iname '*.dat'   -o \
+       -iname '*.db'    -o \
+       -iname '*.deb'   -o \
+       -iname '*.dir'   -o \
+       -iname '*.dll'   -o \
+       -iname '*.doc'   -o \
+       -iname '*.docx'  -o \
+       -iname '*.dot'   -o \
+       -iname '*.enc'   -o \
+       -iname '*.fb2'   -o \
+       -iname '*.fd'    -o \
+       -iname '*.gpg'   -o \
+       -iname '*.gif'   -o \
+       -iname '*.gz'    -o \
+       -iname '*.htc'   -o \
+       -iname '*.htm'   -o \
+       -iname '*.html'  -o \
+       -iname '*.ico'   -o \
+       -iname '*.ini'   -o \
+       -iname '*.iso'   -o \
+       -iname '*.jpg'   -o \
+       -iname '*.js'    -o \
+       -iname '*.lang'  -o \
+       -iname '*.log'   -o \
+       -iname '*.lst'   -o \
+       -iname '*.map'   -o \
+       -iname '*.md'    -o \
+       -iname '*.mkv'   -o \
+       -iname '*.mo'    -o \
+       -iname '*.mobi'  -o \
+       -iname '*.mpeg'  -o \
+       -iname '*.mpg'   -o \
+       -iname '*.msi'   -o \
+       -iname '*.o'     -o \
+       -iname '*.orig'  -o \
+       -iname '*.patch' -o \
+       -iname '*.pdf'   -o \
+       -iname '*.php'   -o \
+       -iname '*.pm'    -o \
+       -iname '*.png'   -o \
+       -iname '*.pod'   -o \
+       -iname '*.prr'   -o \
+       -iname '*.prf'   -o \
+       -iname '*.rar'   -o \
+       -iname '*.rpm'   -o \
+       -iname '*.rtf'   -o \
+       -iname '*.sql'   -o \
+       -iname '*.src'   -o \
+       -iname '*.ssh'   -o \
+       -iname '*.sty'   -o \
+       -iname '*.svg'   -o \
+       -iname '*.swf'   -o \
+       -iname '*.t'     -o \
+       -iname '*.tbz'   -o \
+       -iname '*.tex'   -o \
+       -iname '*.tgz'   -o \
+       -iname '*.theme' -o \
+       -iname '*.ttf'   -o \
+       -iname '*.txt'   -o \
+       -iname '*.upp'   -o \
+       -iname '*.vim'   -o \
+       -iname '*.vsd'   -o \
+       -iname '*.vsdx'  -o \
+       -iname '*.xls'   -o \
+       -iname '*.xlsx'  -o \
+       -iname '*.xml'   -o \
+       -iname '*.xpm'   -o \
+       -iname '*.z'     -o \
+       -iname '*.zip'   -o \
+       -iname '*rc'        \
+       \) -print0|xargs -0 -r chmod  -v u-x|grep -v permanece
+find "$DIR" -type f \(\
+       -iname '*.sh' -o \
+       -iname '*.pl'   \) \
+       -print0 | xargs -0 -r chmod -v u+x|grep -v permanece
+
+# }}}

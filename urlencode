@@ -1,0 +1,101 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=head1 NAME
+
+B<urlencode> - URL or HTML encode or decode the given strings
+
+=head1 SYNOPSIS
+
+urlencode OPTIONS URL
+
+urlencode OPTIONS < URLLIST
+
+=head1 DESCRIPTION
+
+URL or HTML encode or decode the given strings
+
+=head1 OPTIONS
+
+    -H
+    -d
+    -q
+    -u
+    -h
+
+=head1 COPYRIGHT & LICENSE
+
+Steve Kinzler, steve@kinzler.com, Jan 03/Aug 09
+
+http://kinzler.com/me/home.html#web
+
+=cut
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{
+# Pragmas
+use strict;
+use Getopt::Std;
+# }}}
+# {{{
+# Variables
+our %opt;
+my $in;
+my $usage = "$0 [ -d ] [ -H [ -q ] ] [ arg ... ]
+    -d  decode instead of encode
+    -H  HTML coding instead of URL coding
+    -q  also HTML encode double-quotes
+If no arguments are given, standard input is used.\n";
+# }}}
+# {{{
+# Parametros
+getopts( "dHqhu", \%opt ) or usage("Fallo parámetros");
+die $usage if $opt{h};
+die $usage if $opt{u};
+$in = (@ARGV) ? join(' ', @ARGV) : join('', <>);
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Encode or decode input
+print $opt{H} ? ($opt{d} ? htmldecode($in) : htmlencode($in))
+     : ($opt{d} ? urldecode( $in) : urlencode( $in), "\n");
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub urlencode {
+    local($_) = join('', @_);
+    s/[^ \w!\$'()*,\-.]/sprintf('%%%02x', ord $&)/ge;
+    s/ /+/g;
+    return $_;
+}
+# }}}
+# {{{
+sub urldecode {
+    local($_) = join('', @_);
+    s/\+/ /g;
+    s/%([\da-f]{2})/pack('C', hex $1)/gie;
+    return $_;
+}
+# }}}
+# {{{
+sub htmlencode {
+    local($_) = join('', @_);
+    s/&/&amp;/g; s/</&lt;/g; s/>/&gt;/g;
+    s/"/&quot;/g if $opt{q};
+    return $_;
+}
+# }}}
+# {{{
+sub htmldecode {
+    local($_) = join('', @_);
+    s/&amp;/&/g; s/&lt;/</g; s/&gt;/>/g; s/&quot;/"/g;
+    return $_;
+}
+# }}}

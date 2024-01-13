@@ -1,0 +1,140 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+B<cmd2man> - Crea pagina de manual con la documentacion incluida en el comando
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item command F<FILE>...
+
+=back
+
+=head1 DESCRIPTION
+
+Procesa la documentación POD (Plain Old Doc), para generar un pagina de manual.
+
+Si el comando no contiene POD, se genera una documentación basica con la
+descripcion del comando de la segunda linea.
+
+=head1 ARGUMENTS
+
+Los argumentos son los ficheros (comandos) a procesar.
+
+=head1 OPTIONS
+
+Sin opciones definidas.
+
+=head1 FILES
+
+El fichero resultante se guarda en F<~/var/man/man1/command.1>.
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al
+autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Variables
+UTF='-u'
+if [ "$OSTYPE" == "linux" ] ; then
+    UTF=''
+fi
+DIR=~/var/man/man1
+if [ ! -d $DIR ] ; then
+    mkdir -p $DIR
+fi
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+function generar() {
+    # echo Generando manual de $i
+    pod2man -r 'L.A.H.' $UTF -c 'Toolbox - Luis Arocha' $i $i.1
+    if [ -s $i.1 ]; then
+        mv $i.1  $DIR/ && echo Generado $i
+        gzip -f $DIR/$i.1
+        touch -r $i $DIR/$i.1.gz
+    else
+        echo No hay documentacion para $i
+        cp ~/etc/undocumented.pod /tmp/$i
+        LINE=`hcom $i|perl -pe 's(\/)(\\\/)g;s/^(\w+) +/$1 - /'`
+        sed -i'' -e "s/^undocumented.*/$LINE/" /tmp/$i
+        pod2man -r 'L.A.H.' $UTF \
+                -c 'Toolbox - Luis Arocha' /tmp/$i $i.1
+        mv $i.1  $DIR/ && echo "Generado $i (undocumented)"
+        gzip -f $DIR/$i.1
+        touch -r $i $DIR/$i.1.gz
+        rm /tmp/$i
+    fi
+}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Borrar los man de los comandos eliminados
+cd $HOME/var/man/man1
+for i in *; do
+    if [ ! -f $HOME/bin/${i/.1.gz/} -a ! -f $HOME/local/bin/${i/.1.gz/} ] ; then
+        rm -v $i
+    fi
+done
+cd - >/dev/null
+# }}}
+# {{{ Crear man para aquellos comandos nuevos o cambiados
+~/bin/clean
+for i in $*; do
+    test "$i" == "LICENSE"   && continue
+    test "$i" == "Makefile"  && continue
+    test "$i" == "VERSION"   && continue
+    test "$i" == "README.md" && continue
+    if [ -f $i ] ; then
+        if [ -f $DIR/$i.1.gz ] ; then
+            if [ $i -nt $DIR/$i.1.gz ] ;  then
+                generar
+            fi
+        else
+            generar
+        fi
+    else
+        if [ ! -d $i ]; then
+            echo No existe $i
+        fi
+    fi
+done
+exit 0
+# }}}

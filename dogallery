@@ -1,0 +1,324 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<dogallery> - Create index.html file with a gallery of images and videos
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<dogallery> (-h|--help|-u|-V|--version)
+
+=item B<dogallery> 
+
+=back
+
+=head1 DESCRIPTION
+
+Se crea el fichero f<index.html> que muestra una galeria de images y videos del
+directorio actual, así como enlaces para cambiar de directorio.
+
+Apunta a ficheros javascript,  css e imagen que se deben encontrar en
+f<http://arocha.cf/js/>, f<http://arocha.cf/css> y f<http://arocha.cf/images>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h|--help> Help. Muestra la información de ayuda completa.
+
+=item B<-t> Test mode. No ejecuta. Solo muestra lo que se haría.
+
+=item B<-u> Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v> Verbose. Muestra información detallada durante la ejecución.
+
+=item B<-V|--version> Version. Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 SEE ALSO
+
+B<album>, B<slide>, B<mkindex>
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright (2019) Luís M. Arocha Hernández <lah.data@gmail.com>
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use Env;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.3 $, 10;
+# }}}
+# {{{ Variables
+my %opt;
+my $index; { undef $/; $index=<DATA>}
+my $img    = '';
+my $dir    = '';
+my $vid    = '';
+my @imgs  = qw//;
+my @videos = qw//;
+my @dirs   = qw//;
+# }}}
+# {{{ Parametros
+getopts('huvV',\%opt) or usage('Fallo parámetros');
+help()              if $opt{h};
+usage()             if $opt{u};
+version()           if $opt{V};
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Busca los ficheros y directorios
+opendir DIR, '.' or die $!;
+while (my $f = readdir(DIR)){
+    next if $f =~ /^\./;
+    next if $f =~ /thumb/;
+    if (-d $f){
+        push @dirs, $f;    
+        next;
+    }
+    if ($f =~ /(jpe?g|png|bmp|gif)$/i){
+        push @imgs, $f;
+        next;
+    }
+    if ($f =~ /(mov|mpg|mp4|avi)$/i){
+        push @videos, $f;
+        next;
+    }
+    next unless -s $f;
+}
+closedir DIR;
+# }}}
+# {{{
+# Relena template
+# Prepara cadena de dirs
+foreach (sort @dirs){
+    $dir .= qq{<figure><a href="$_/index.html"><img title="$_" alt="$_" src="http://arocha.cf/images/folder.png"></a><figcaption>$_</figcaption></figure>};
+    $dir .= "\n";
+}
+# Crea directorio de thumbnails
+if (! -d '.thumbs'){
+    mkdir '.thumbs' unless $opt{t};
+}
+# Prepara cadena de videos
+foreach (sort @videos){ 
+    create_thumb_video($_); 
+    $vid .= qq{<a href="$_"><img class="cine" title="$_" at="$_" src=".thumbs/.$_.jpg"></a>};
+    $vid .= "\n";
+}
+# Prepara cadena de imagenes
+foreach (sort @imgs  ){ 
+    my $gal='gallery';
+    if (create_thumb_image($_)==1){
+       $gal='gallery-icon';
+    } 
+    $img .= qq{<a href="$_" class="fancybox-buttons" data-fancybox-group="button"><img class="$gal" title="$_" alt="$_" src=".thumbs/.$_"></a>};
+    $img .= "\n";
+}
+# Rellena el template
+$index =~  s/\[IMAGENES\]/$img/;
+$index =~  s/\[DIRS\]/$dir/;
+$index =~  s/\[VIDS\]/$vid/;
+# }}}
+# {{{
+# Output. Grabamos index.html y/o mostramos según opciones.
+if ($opt{v}){
+    print $index;
+}
+if (!$opt{t}){
+    open FILE, ">index.html" or die $!;
+    print FILE $index;
+    close FILE;
+}
+# }}}
+# {{{
+# Procesa recursivamente
+# TO DO: Ejecuar la recursividad dentro del comando, no fuera.
+foreach (sort @dirs){
+    print "Procesando directorio $_\n";
+    system "cd '$_';dogallery";
+}
+# }}}
+exit 0;
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub create_thumb_video{
+    # Comprobar si existe, si tiene contenido y si tiene la misma fecha que el
+    # original. Si es así, return.
+    my $file = shift ||return;
+    my $dest = ".thumbs/.$file.jpg";
+    if (-f $dest and -s $dest){
+        my @stat1 = stat($file);
+        my @stat2 = stat($dest);
+        if ($stat1[10] <= $stat2[10]){
+            return;
+        }
+    }
+    print "Creando thumb de $file\n";
+    next if $opt{t};
+    system "ffmpeg -y -i '$file' -ss 00:00:01 -vframes 1 '$dest' 2>/dev/null >/dev/null";
+    system "convert '$dest' -scale 200x '$dest'";
+    system "touch -r '$file' '$dest' ";
+}
+# }}}
+# {{{
+sub create_thumb_image{
+    # Comprobar si existe, si tiene contenido y si tiene la misma fecha que el
+    # original. Si es así, return.
+    my $file  = shift ||return;
+    my $dest  = ".thumbs/.$file";
+    my @stat1 = stat($file);
+    my @stat2;
+    my $is_icon=0;
+    if (-f $dest and -s $dest){
+        @stat2 = stat($dest);
+        if ($stat1[10] <= $stat2[10]){
+            return;
+        }
+    }
+    print "Creando thumb de $file\n";
+    next if $opt{t};
+    # Si es mas pequeño que 20kb, no hacemos convert, sino copy
+    if ($stat1[7] <= 20480){
+        system "cp '$file' '$dest'";
+        $is_icon=1;
+    } else {
+        system "convert '$file' -scale 150x '$dest'";
+    }
+    system "touch -r '$file' '$dest' ";
+    return $is_icon;
+}
+# }}}
+#==============================================================================#
+# DATA                                                                         #
+#==============================================================================#
+# {{{
+__DATA__
+<!DOCTYPE html>
+<html>
+<title>Luis Arocha Images</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/fancybox/2.1.5/jquery.fancybox.css" media="screen" />
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.3.5/jquery.fancybox.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/fancybox/2.1.5/jquery.fancybox.pack.js"></script>
+
+
+<style>
+BODY {
+    max-width            : 90%;
+    margin               : auto;
+    background           : #F2F2F2;
+}
+.main-section {
+    text-align           : center;
+}
+
+H1 {
+    margin-top           : 125px;
+    text-align           : center;
+}
+
+IMG {
+    width                : 150px;
+    padding              : 10px;
+}
+
+.cine {
+    width                : 200px;
+    border               : 6px dashed BLACK;
+    margin               : 4px;
+    border-left          : 0px;
+    border-right         : 0px;
+}
+
+figure {
+    border               : 1px solid GRAY;
+    padding              : 2px;
+    margin               : 4px;
+    display              : inline-block;
+}
+
+    figcaption {
+    padding              : 0;
+    margin               : 0;
+}
+</style>
+<body>
+    <div class="main-section">
+        <center>
+        <figure>
+        <a href="../index.html"><img title="Up" alt="Up" src="http://arocha.cf/images/folder.png"></a>
+        <figcaption>Up</figcaption>
+        </figure>
+[DIRS]
+        </center>
+    </div>
+    <br>
+    <div>
+        <center>
+[VIDS]
+        </center>
+    </div>
+    <br>
+    <div>
+        <center>
+[IMAGENES]
+        </center>
+    </div>
+<!-- JS -->
+<script>
+$(document).ready(function() {
+    $('.fancybox').fancybox();
+    $('.fancybox-buttons').fancybox({
+        openEffect : 'elastic',
+        closeEffect : 'elastic',
+        prevEffect : 'fade',
+        nextEffect : 'fade',
+        closeBtn : true,
+        openSpeed		:	600, 
+        closeSpeed		:	200, 
+        nextSpeed  : 500,
+        prevSpeed  : 500,
+        helpers : {
+            title : {
+            type : 'inside' }, 
+            buttons	: {} },
+        afterLoad : function() {
+          this.title = 'Image ' + (this.index + 1) + ' of ' + this.group.length + (this.title ? ' - ' + this.title : '');
+        }
+    });
+});
+</script>
+</body>
+</html>

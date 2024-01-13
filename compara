@@ -1,0 +1,58 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+compara - Compara dos ficheros ordenados y crea tres ficheros (NEW,DEL,EQ)
+
+=head1 SYNOPSIS
+
+compara F<FILE1> F<FILE2>
+
+=head1 DESCRIPTION
+
+Se comparan compara dos ficheros y generan tres nuevos (F<compara-NEW.txt>,
+F<compara-DEL.txt> y F<compara-EQ.txt>)
+
+    El primero contiene los elementos unicos al primer fichero.
+    El segundo contiene los elementos unicos al segundo fichero.
+    El tercero contiene los elementos comunes.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+tmp=/tmp/compara-$$
+comm $1 $2  2>/dev/null >$tmp
+if [ $? -eq 1 ] ; then
+    rm $tmp
+    echo ERROR:No se pudo hacer la comparacion
+    exit 1
+fi
+grep -P    '^\t[^\t]' $tmp | sed -e 's/^\t//'   >${3}compara-NEW.txt
+grep -P -v '^\t'      $tmp                      >${3}compara-DEL.txt
+grep -P    '^\t\t'    $tmp | sed -e 's/^\t\t//' >${3}compara-EQ.txt
+rm $tmp

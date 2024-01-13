@@ -1,0 +1,136 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+B<png2jpg> - Convierte todos los png del directorio a jpg
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<png2jpg> [-h|-u|-V]
+
+=item B<png2jpg>
+
+=back
+
+=head1 DESCRIPTION
+
+Convierte todos los png del directorio a jpg.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h> 
+
+Muestra la información de ayuda completa.
+
+=item B<-u> 
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v> 
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V> 
+
+Muestra la versión del comando.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2015 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+function usage {
+    if test "$*"; then
+        echo $*
+    fi
+    pod2usage -verbose 1 $0
+    exit 1
+}
+
+# }}}
+# {{{
+function help {
+    pod2text -c $0
+    exit 1
+}
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Variables
+VERSION="$Revision: 3.1 $"
+VERSION=${VERSION#:\ }
+VERSION=${VERSION%\ \$}
+
+# }}}
+# {{{ Parametros
+while getopts huvV options; do
+    case "$options" in
+        h) help ;;
+        u) usage ;;
+        v) verbose=on ;;
+        V) echo "${0/*\//} - $VERSION";exit 1;;
+       \?) usage "Fallo parámetros" ; exit 1 ;;
+    esac
+done
+shift $(( $OPTIND - 1 ))
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+for i in *.png; do
+    test $verbose && echo $i
+    if [ -f ${i/png/jpg} ]; then
+        echo Ya existe ${i/png/jpg}
+    else
+        if convert $i ${i/png/jpg} >/dev/null; then
+            rm $i
+        else
+            echo NO se pudo convertir $i
+        fi
+    fi
+done
+exit 0
+
+# }}}

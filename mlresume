@@ -1,0 +1,8 @@
+#!/bin/sh
+### continua la descarga de un fichero de mldonkey que habia sido parado
+# Luís M. Arocha Hernández
+if [ ! -d /pub/mldonkey ]; then
+    echo Fail. No mldonkey here.
+    exit 1
+fi
+ml resume $@

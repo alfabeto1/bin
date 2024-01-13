@@ -1,0 +1,6 @@
+#!/bin/bash
+### MySQL output beautifier and pager
+# Colorea la salida y convierte gráficos de caja simples a gráficos más
+# estéticos. Para usar como PAGER dentro de MySQL.
+ rebox| grcat ~/etc/grcat.mysql.txt |less
+#rebox| less

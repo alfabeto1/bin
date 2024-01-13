@@ -1,0 +1,78 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use JSON qw( decode_json );
+
+#--------------------------------------------------------------+
+# Parametros                                                   |
+#--------------------------------------------------------------+
+
+if (!$ARGV[0]) {
+    print "Usage: $0 <file...>\n";
+    exit;
+}
+#--------------------------------------------------------------+
+# Variables                                                    |
+#--------------------------------------------------------------+
+my %video= (
+    'hevc'  => 'KO',
+    'h265'  => 'KO',
+    'png'   => 'KO',
+    'vp9'   => 'KO',
+    'av1'   => 'KO',
+    'h264'  => 'OK',
+    'xvid'  => 'OK',
+    'mjpeg' => 'KO',
+    'mpeg2' => 'OK',
+    'mpeg4' => 'OK');
+my %audio= (
+    'aac'  => 'KO',
+    'eac3' => 'KO',
+    'ac3'  => 'OK',
+    'dts'  => 'OK',
+    'flac' => 'KO',
+    'opus' => 'KO',
+    'mp3'  => 'OK');
+my $video_codec = "";
+my $audio_codec = "";
+#--------------------------------------------------------------+
+# MAIN                                                         |
+#--------------------------------------------------------------+
+for my $file(@ARGV){
+    $video_codec='';
+    $audio_codec='';
+    # Obtiene los detalles del archivo con ffprobe
+    my $details = `ffprobe -v quiet -print_format json -show_streams -show_format "$file"`;
+    my $json = decode_json($details);
+
+    # Extrae los codecs de audio y video
+    foreach my $stream (@{$json->{streams}}) {
+        if ($stream->{codec_type} eq "video") {
+            $video_codec = $stream->{codec_name};
+        }
+        elsif ($stream->{codec_type} eq "audio") {
+            $audio_codec = $stream->{codec_name};
+        }
+    }
+
+    my $found= 0;
+    # Comprueba los videos
+    $video_codec = lc($video_codec);
+    $audio_codec = lc($audio_codec);
+    if (defined $video{$video_codec} and $video{$video_codec} eq 'OK'){
+        $found++;
+    }
+    if (defined $audio{$audio_codec} and $audio{$audio_codec} eq 'OK'){
+        $found++;
+    }
+    if ($found != 2){
+        print "FAILED: "
+    } else {
+        print "OK:     "
+    }
+    print "$video_codec\t";
+    print "$audio_codec\t";
+    print "$file\n";
+
+}

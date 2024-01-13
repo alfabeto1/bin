@@ -1,0 +1,196 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<any2avi> - Convierte videos de cualquier tipo a avi
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item any2avi [-h|--help|-u|-V|--version]
+
+=item any2avi [-r] [-m] [-v] [-t] F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Obtener resolución del fichero de entrada y calcular bitrate adecuado a
+partir de la siguiente tabla.
+
+  VIDEO BITRATE SUGESTION (LAH)             pixel   razon pixels/kbps
+  320x 240 pixels  400 kbps    3MB / minute 76800   192
+  480x 270 pixels  700 kbps    5MB / minute 129600  185
+ 1024x 576 pixels 1500 kbps   11MB / minute 589824  393
+ 1280x 720 pixels 2500 kbps   19MB / minute 921600  288
+ 1920x1080 pixels 4000 kbps   30MB / minute 2073600 518
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h> 
+
+Muestra la información de ayuda completa.
+
+=item B<-m> 
+
+Utiliza el codec F<msmpeg4> en vex de F<libxvid>.
+
+=item B<-r> 
+
+Rotate. Girar video a la derecha.
+
+=item B<-t> 
+
+Try. No hacer nada. Solo de prueba.
+
+=item B<-u> 
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v> 
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V> 
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2013 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION   = substr q$Revision: 3.0 $, 10;
+my $RAZON      = 200;
+my $MINBITRATE = 700;
+my $abitrate   ='128k';
+
+# }}}
+# {{{ Variables
+my $vbitrate;
+my $input;
+my $output;
+my $cmd;
+my $w     = 640;
+my $h     = 480;
+my $codec = 'libxvid';
+my %opt;
+
+# }}}
+# {{{ Parametros
+getopts("hmrtuvV",\%opt) or usage("Fallo parámetros");
+help()              if $opt{h};
+usage()             if $opt{u};
+if ($opt{V}){version();exit 1;}
+$input = shift || usage("Falta fichero de entrada");
+$output = "$input.avi";
+if ($opt{m}){
+    $codec = 'msmpeg4';
+}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Obtenemos resolución del fichero de entrada
+$cmd = "ffmpeg -i '$input' 2>&1 |";
+open FILE,$cmd or die "$cmd. $!\n";
+while (<FILE>){
+    if (/Stream.*Video.* (\d+)x(\d+),? /){
+        $w = $1;
+        $h = $2;
+        last;
+    }
+}
+close FILE;
+if (!$w*$h){
+    die "No se ha encontrado resolución ${w}x$h\n";
+}
+print "\n$input: ${w}*$h\n";
+
+# }}}
+# {{{ Calculamos bitrate. Yuyu happens here  :-(
+$vbitrate = int (($w*$h/$RAZON)+.99);
+$vbitrate = (int ($vbitrate/100)+1)*100;
+# print "\nVBITRATE =====> $vbitrate\n";
+my $calc = $w*$h*24*4*.07/1000;
+$calc = (int ($calc/100)+1)*100;
+# print "\nCALC VBITRATE =====> $calc\n";
+$vbitrate = $calc;
+$vbitrate = $MINBITRATE if $vbitrate <$MINBITRATE;
+$vbitrate = "${vbitrate}k";
+
+# }}}
+# {{{ Realizamos la conversión
+print "Convirtiendo\n" if $opt{v};
+# $cmd = "ffmpeg -i '$input' -y " .
+$cmd = "pv $input |nice ffmpeg -i pipe:0 -y " .
+       ($opt{r}?"-vf 'transpose=1' ":'') .
+       "-acodec libmp3lame -ac 2 -ar 48000 ".
+       "-ab $abitrate " .
+       "-vcodec $codec " .
+       "-b:v $vbitrate ". 
+       "-loglevel warning " .
+       "-map 0:0 -map 0:1? -hide_banner " .
+       "-r 23.976 '$output' && trash-put $input";
+# print "$cmd\n";
+exit 0 if $opt{t};
+my $exit_status = system $cmd;
+if ($exit_status !=0) {
+    print "Command failed. Trying again\n";
+    $cmd = "nice ffmpeg -i $input -y " .
+        ($opt{r}?"-vf 'transpose=1' ":'') .
+        "-acodec libmp3lame -ac 2 -ar 48000 ".
+        "-ab $abitrate " .
+        "-vcodec $codec " .
+        "-b:v $vbitrate ". 
+        "-loglevel warning " .
+        "-map 0:0 -map 0:1? -hide_banner " .
+        "-r 23.976 '$output' && trash-put $input";
+    system $cmd;
+}
+exit 0;
+
+# }}}

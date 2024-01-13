@@ -1,0 +1,87 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+
+=encoding utf-8
+
+=head1 NAME
+
+B<sqlbeautify> - Beautify SQL sentences, spacing and changing case.
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item sqlbeautify --help
+
+=item sqlbeautify [--spaces NUM] [FILE]
+
+=back
+
+=head1 DESCRIPTION
+
+Uses the SQL::Beautify module to do the work.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2015 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Pragmas y packages
+use strict;
+use warnings;
+use Getopt::Long qw(GetOptions);
+use SQL::Beautify;
+use CommonFunc qw/:all/;
+
+# }}}
+# {{{
+# Variables
+my %opt;
+my $content;
+my $sql;
+
+# }}}
+# {{{
+# Parametros
+GetOptions(\%opt,
+    'spaces=i',
+    'help',
+) or usage("Parametros erróneos");
+usage() if $opt{help};
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Proceso. Basicamente leer entrada e invocar a objeto SQL::Beautify
+{
+    local $/;
+    $content = <>;
+}
+$sql = SQL::Beautify->new(%opt);
+$sql->query($content);
+print $sql->beautify;
+
+# }}}
+exit;

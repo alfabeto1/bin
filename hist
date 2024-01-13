@@ -1,0 +1,193 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+
+=encoding utf-8
+
+=head1 NAME
+
+B<hist> - Simple text histogram drawer
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item hist [-h|--help|-u|--usage|-V|--version]
+
+=item hist [-m|--max INT] [-v|--verbose] [-U|--units INT] F<FILE>...
+
+=back
+
+=head1 DESCRIPTION
+
+Simple text histogram drawer
+
+=head1 ARGUMENTS
+
+Si se pasan argumentos, se tratarán como ficheros de entrada.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-m>, B<--max>
+
+Valor máximo sobre el que se calculan las lineas a dibujar. Si no se identifica,
+el valor máximo es el máximo de la lista de datos, con lo que este representa
+siempre una línea gráfica completa.
+
+=item B<-u>, B<--usage>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-U>, B<--units>
+
+Cuantas unidades son representadas por un caracter del histograma.
+
+=item B<-v>, B<--verbose>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 INPUT FILE SAMPLE
+
+text1     5601
+text2    45003
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software,
+reconociendo a su autor original y de acuerdo con los términos de la
+licencia GPL. (GNU General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luis M. Arocha Hernández <lah.data@gmail.com>.
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+$|++;
+use 5.10.0;
+use strict;
+use Getopt::Long qw/:config no_ignore_case bundling/;
+# use CommonFunc qw/:all/;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.5 $, 10;
+
+# }}}
+# {{{ Variables
+my $ant     = '';
+my $columns = $ENV{COLUMNS};
+my $day     = 0;
+my $histlen;
+my $maxa    = 0;
+my $maxb    = 0;
+my $maxc    = 0;
+my $media   = 0;
+my $suma    = 0;
+my $units;
+my %opt;
+my @lines;
+
+# }}}
+# {{{ Parametros
+Getopt::Long::Configure("bundling","no_ignore_case");
+GetOptions (
+            "h|help"     => \$opt{h},
+            "m|max=i"    => \$opt{m},
+            "u|usage"    => \$opt{u},
+            "U|units=i"  => \$opt{U},
+            "v|verbose"  => \$opt{v},
+            "V|version"  => \$opt{V},
+            ) or usage('Fallo parámetros');
+
+help()    if $opt{h};
+usage()   if $opt{u};
+version() if $opt{V};
+$units=$opt{U} if $opt{U};
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Preload and calculate max values
+while (<>){
+    chomp;
+    my ($a,$b) = split(/\s+/);        # Separe two input values
+    next if $a =~ /^Media:/;
+    next unless $b=~ /^[\d\.\,]+$/;    # Reject if no number
+    $suma+=$b;
+    $b=~ s/,/./;                     # Ensure decimal point
+    $maxa = length($a) if length($a) > $maxa;
+    $maxb = $b if $b > $maxb;
+    $maxc = length($b) if length($b) > $maxc;
+    push @lines, $_;
+}
+say scalar @lines, " líneas leidas" if $opt{v};
+$maxb    = $opt{m} if ($opt{m} and $opt{m}>$maxb);
+$histlen = $columns-$maxa - $maxc - 2;
+if ($opt{U}){
+    $units=$opt{U};
+} else {
+    $units=$maxb/$histlen;
+}
+
+# }}}
+# {{{
+# And print histogram
+printf "%-${maxa}s %${maxc}s %s\n",'','','#'x$histlen;
+foreach (@lines){
+    my ($a,$b) = split(/\s+/);
+    my $dots   = int(($b/$units)+.5);
+    my $t      = '='x$dots;
+    if ($a lt $ant){
+        $day++;
+        printf "* %02d %s\n", $day, '*'x($ENV{COLUMNS}-5);
+    }
+    $ant=$a;
+    printf "%-${maxa}s %${maxc}d %s\n",$a,int($b+.5),$t;
+}
+if (scalar @lines){
+    $media = int(($suma/(scalar @lines))+.5);
+} else {
+    $media = 0;
+}
+print "\nMedia:      $media\n" if $opt{v};
+print "Maximo:     $maxb\n" if $opt{v};
+printf ("Every = means %.2f  units\n", $units) if $opt{v};
+printf ("Lineas:     %d\n", scalar @lines) if $opt{v};
+exit 0;
+
+# }}}

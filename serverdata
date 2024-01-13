@@ -1,0 +1,252 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+
+=encoding UTF-8
+
+=head1 NAME
+
+B<serverdata> - Muestra información básica sobre la máquina.
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item serverdata [-h|-u|-v|-V] [-s]
+
+=back
+
+=head1 DESCRIPTION
+
+Muestra informacion básica sobre la máquina.
+
+Se obtiene la información de los comandos B<ec2>, B<uptime>, B<df>, B<getent>, B<ip>,
+B<ipconfig> e B<ifconfig>, dependiendo de cuales están disponibles, así como
+ficheros de F</proc/> y F</etc/>.
+
+También se busca información acerca del servidor, si fuera AWS, en la url
+L<http://169.254.169.254/latest/meta-data/instance-type>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h> 
+
+Help. Muestra la información de ayuda completa.
+
+=item B<-u> 
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-s>
+
+Ejecuta df con sin revisar los filesystems nfs, para evitar que se cuelgue cuando haya un nfs con
+problemas.
+
+=item B<-v> 
+
+Verbose. Muestra la información más completa.
+
+=item B<-V> 
+
+Version. Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al
+autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+function usage {
+    if test "$*"; then
+        echo $*
+    fi
+    pod2usage -verbose 1 $0
+    exit 1
+}
+
+# }}}
+# {{{
+function help {
+    pod2text -c $0
+    exit 1
+}
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Constantes
+VERSION="$Revision: 3.2 $"
+VERSION=${VERSION#:\ }
+VERSION=${VERSION%\ \$}
+
+# )))
+
+# }}}
+# {{{ Variables
+ec2=`which ec2metadata 2>/dev/null`
+tmp=/tmp/serverdata.$$
+URL_TYPE="http://169.254.169.254/latest/meta-data/instance-type"
+URL_PROFILE="http://169.254.169.254/latest/meta-data/iam/info"
+URL_ZONE="http://169.254.169.254/latest/meta-data/placement/availability-zone"
+safe=''
+
+# }}}
+# {{{ Parametros
+while getopts hsuvV options; do
+    case "$options" in
+        h) help ;;
+        s) safe=' -x nfs ' ;;
+        u) usage ;;
+        v) verbose=on ;;
+        V) echo "${0/*\//} - $VERSION";exit 1;;
+       \?) usage "Fallo parámetros" ; exit 1 ;;
+    esac
+done
+shift $(( $OPTIND - 1 ))
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Cabecera
+rm -f $tmp
+if test "$verbose" == "on" ; then
+    echo -n 'Summary for ' >>$tmp
+    hostname|sed 's/$/:/'  >>$tmp
+    echo ' '  >>$tmp
+fi
+
+# }}}
+# {{{ OS
+if test "$verbose" == "on" ; then
+    echo Operative System:  >>$tmp
+fi
+if [ -f /etc/redhat-release ] ; then
+    cat /etc/redhat-release | sed 's/^/    /'  >>$tmp
+elif [ -f /etc/SuSE-release ] ; then
+    head -1 /etc/SuSE-release | sed 's/^/    /'  >>$tmp
+else
+    cat /proc/version| sed 's/ (.*//'| sed 's/^/    /'  >>$tmp
+fi
+# }}}
+# {{{ Uptime
+    echo -n 'Uptime: ' >>$tmp
+    uptime | awk '{print $3,$4}' | cut -f1 -d,  >>$tmp
+# }}}
+# {{{ Processor
+if test "$verbose" == "on" ; then
+    echo Processor:  >>$tmp
+fi
+cat /proc/cpuinfo |\
+    grep 'model name' |\
+    sed -e 's/model name\t: */CPU model: /' |\
+    tail -1 |\
+    sed 's/^/    /'  >>$tmp
+cat /proc/cpuinfo |\
+    grep 'model name' |\
+    wc -l |\
+    sed 's/^/    CPUs: /'  >>$tmp
+
+# }}}
+# {{{ RAM
+echo -n Memory:  >>$tmp
+cat /proc/meminfo|\
+    grep MemTotal|\
+    sed 's/MemTotal://' |\
+    perl -pe 's/ *(\d+) Kb/sprintf " %0.1f Gb",$1\/1024\/1024/ie' >>$tmp
+
+# }}}
+# {{{ AWS Servertype & Profiletype
+SERVERTYPE=$(wget -q -t 1 --timeout=2 $URL_TYPE -O -)
+if test -n "$SERVERTYPE"; then
+    echo "AWS Servertype: $SERVERTYPE" >>$tmp
+    if test "$verbose" == "on" ; then
+        echo -n "AWS Instance Profile: " >>$tmp
+        wget -q $URL_PROFILE -O - | grep Arn |\
+            sed 's/.*instance-profile.//;s/-InstanceProfile.*//' >>$tmp
+        echo -n "AWS Availability Zone: " >>$tmp
+        wget -q $URL_ZONE -O - >>$tmp
+        echo '' >>$tmp
+    fi
+fi
+
+# }}}
+# {{{ Network
+if test "$verbose" == "on" ; then
+    echo Network: >>$tmp
+    (ip a||ifconfig||ipconfig) 2>/dev/null|\
+        grep -iaP '(inet|IPV4)'|\
+        grep -av 127.0.0|\
+        sed 's/Direcci\xa2.*IPv4.*://' |\
+        sed 's/^ *//;s/inet //;'|\
+        sed 's/^/    /' >>$tmp
+fi
+# }}}
+# {{{ Disks
+if test "$verbose" == "on" ; then
+    echo Harddisk: >>$tmp
+fi
+df $safe -P -B1G|\
+    grep -v tmp|\
+    grep -v Prodotti|\
+    grep -v udev|\
+    grep -v none|\
+    grep -v tmp_export|\
+    grep -v rootfs|\
+    sed 's/bloques de 1073741824/TAMANO_GBS/;s/Capacidad/%Usado/' |\
+    sed 's/1073741824-blocks/TAMANO_GBS/;s/Available/Libre/;s/Capacity/%Usado/' |\
+    sed 's/1073741824-bloques/TAMANO_GBS/;s/Disponible/Libre/;s/Ocupado/%Usado/' |\
+    sed 's/Mounted on/Montado en/;s/Used/Usado/' |\
+    sed 's/Filesystem/S.Ficheros/' |\
+    ~/bin/align -alrrrrl |\
+    sed 's/^/    /;s/Montado *en/Montado en/;s/TAMANO_GBS/Tamaño_GBs/' >>$tmp
+
+# }}}
+# {{{ Access groups
+if test "$verbose" == "on" ; then
+    echo Access groups: >>$tmp
+    cat /etc/opt/quest/vas/users.allow|tabulate -s -w 76|sed 's/^/    /' >>$tmp
+fi
+# }}}
+# {{{ Output, clean and exit
+if test "$verbose" == "on" ; then
+    cat $tmp
+else
+    cat $tmp|sed 's/^    //'
+fi
+
+rm $tmp
+exit
+# }}}

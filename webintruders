@@ -1,0 +1,328 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+
+=encoding utf-8
+
+=head1 NAME
+
+B<webintruders> - Revisa apache.log y muestra/ejecuta comandos para banear indeseables
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item webintruders [-h|--help|-u|--usage|-V|--version]
+
+=item webintruders [-v|--verbose] [-t|--test] F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Revisa apache.log y muestra/ejecuta comandos para banear indeseables.
+Configurado para vhosts_combined.
+
+Atención: necesita utilidad grepcidr.
+
+=head1 ARGUMENTS
+
+A qué corresponde cada argumento posicional. Valores por defecto.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-t>, B<--test>
+
+No ejecuta. Solo muestra lo que se haría.
+
+=item B<-u>, B<--usage>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>, B<--verbose>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 EXIT STATUS
+
+Listar los posibles valores de salida del programa y las condiciones en que esos valores son
+devueltos.
+
+=head1 FILES
+
+Relación exaustiva de los ficheros utilizados por el programa, como ficheros de configuración,
+ficheros de arranque, o ficheros sobre los que el programa opera. Especificar nombre y ruta.
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2021 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a su autor original y
+de acuerdo con los términos de la licencia GPL. (GNU General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luis M. Arocha Hernández <lah.data@gmail.com>.
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use Getopt::Long qw/:config no_ignore_case bundling/;
+use CommonFunc qw/:all/;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 0.0 $, 10;
+my $baneados = '/home/luis/etc/banned-mine';
+my $queries  = '/home/luis/etc/webintruders-queries.txt';
+my $ignore   = '/home/luis/etc/webintruders-ignores.txt';
+my $ranges = "
+    103.21.244.0/22
+    103.22.200.0/22
+    103.31.4.0/22
+    104.16.0.0/13
+    104.24.0.0/14
+    108.162.192.0/18
+    131.0.72.0/22
+    141.101.64.0/18
+    162.158.0.0/15
+    172.64.0.0/13
+    173.245.48.0/20
+    188.114.96.0/20
+    190.93.240.0/20
+    197.234.240.0/22
+    198.41.128.0/17
+";
+
+# }}}
+# {{{ Variables
+my %opt;
+my $file      = '/var/log/apache2/access.log';
+my %baneados  = qw//;
+my @offending = qw//;
+my @ignore    = qw//;
+my $today     = short_date();
+my $found     = 0;
+
+# }}}
+# {{{ Parametros
+Getopt::Long::Configure("bundling","no_ignore_case");
+GetOptions (
+            "h|help"     => \$opt{h},
+            "t|test"     => \$opt{t},
+            "u|usage"    => \$opt{u},
+            "v|verbose"  => \$opt{v},
+            "V|version"  => \$opt{V},
+            "x|execute"  => \$opt{x},
+            ) or usage('Fallo parámetros');
+
+help()    if $opt{h};
+usage()   if $opt{u};
+version() if $opt{V};
+
+$file = shift || $file;
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Leer baneados
+if (open FILE, $baneados) {
+    while (<FILE>){
+        next if /^#/;
+        chomp;
+        s/ .*//;
+        $baneados{$_}=1;
+    }
+    close FILE;
+}
+# }}}
+# {{{
+# Leer lineas query
+open FILE, $queries or die $!;
+while (<FILE>){
+    last if /# LAST/;
+    next if /^#/;
+    chomp;
+    s/\//\\\//g;
+    s/\./\\./g;
+    push @offending, $_;
+}
+close FILE;
+# }}}
+# {{{
+# Leer lineas ignore
+open FILE, $ignore or die $!;
+while (<FILE>){
+    last if /# LAST/;
+    next if /^#/;
+    chomp;
+    s/\//\\\//g;
+    s/\./\\./g;
+    push @ignore, $_;
+}
+close FILE;
+push @ignore,'/.*html HTTP';
+push @ignore,'GET .*gif HTTP';
+push @ignore,'GET .*ico HTTP';
+push @ignore,'GET .*jpg HTTP';
+push @ignore,'GET .*png HTTP';
+push @ignore,'GET .*xml HTTP';
+push @ignore,'GET /\s';
+push @ignore,'GET /client';
+push @ignore,'GET /monitor';
+push @ignore,'GET /datacare';
+push @ignore,'GET /ejercicio';
+push @ignore,'GET /jsonejercicio';
+push @ignore,'GET /jsonreceta';
+push @ignore,'GET /receta';
+push @ignore,'GET /static';
+push @ignore,'HEAD .*gif HTTP';
+push @ignore,'HEAD .*ico HTTP';
+push @ignore,'HEAD .*jpg HTTP';
+push @ignore,'HEAD .*png HTTP';
+push @ignore,'POST /ejercicio';
+push @ignore,'POST /receta';
+push @ignore,'POST /client';
+push @ignore,'POST /monitor';
+# }}}
+# {{{
+# Procesar fichero access.log o similar
+open FILE, $file or die $!;
+while (<FILE>){
+    chomp;
+    print "\n" if $opt{v};
+    print "¿$_?\n" if $opt{v};
+    my ($vhost,             $clientAddress, $rfc1413,      $username,
+        $localTime,         $httpRequest,   $statusCode,
+        $bytesSentToClient, $referer,       $clientSoftware) =
+    /^(\S+) (\S+) (\S+) (\S+) \[(.+)\] \"(.+)\" (\S+) (\S+) \"(.*)\" \"(.*)\"/o;
+    if ($clientAddress eq '127.0.0.1' or $clientAddress eq '::1'){
+        #  localhost
+        next;
+    }
+    if ($vhost =~ 'saul-trainer.ml'){
+        #  Aplicación web
+        next;
+    }
+    if ($clientAddress =~ '192.168'){
+        #  localnet
+        next;
+    }
+    if (is_cloudfare($clientAddress)){
+        print "Is cloudfare\n" if $opt{v};
+        next;
+    }
+    if ($statusCode eq '408'){
+        next; # Timeout. Prefetch of some browsers
+    }
+    $found=0;
+    foreach my $i (@ignore){
+        if ( $httpRequest =~ /$i/i){
+            $found=1;
+            print "Ignored\n" if $opt{v};
+            last;
+        } 
+    }
+    next if $found;
+    if ( $httpRequest =~ /SSH/i or
+        $httpRequest =~ /^"CONNECT/i){
+        peligroso($clientAddress, "mixed", $httpRequest);
+        next;
+    }
+    if ($httpRequest =~ /jsp$/ or
+        $httpRequest =~ /aspx$/){
+        peligroso($clientAddress, "jsp-asp", $httpRequest);
+        next;
+    }
+    $found=0;
+    foreach my $o (@offending){
+        if ( $httpRequest =~ /$o/i){
+            peligroso($clientAddress, "$o", $httpRequest);
+            $found=1;
+            last;
+        } 
+    }
+    next if $found;
+    print "# UNKNOWN: $_\n";
+}
+close FILE;
+exit 0;
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub is_cloudfare{
+    my $ipparm=shift||return 0;
+    system "echo $ipparm|grepcidr \"$ranges\" >/dev/null";
+    if ($? == 0){
+        return 1;
+    }
+    return 0;
+}
+# }}}
+# {{{
+sub peligroso {
+    my $ip = shift;
+    my $comment = shift||'';
+    my $verbose = shift||'';
+    $verbose=~ s/ HTTP.*//;
+    return if $baneados{$ip} eq 1;
+    $baneados{$ip}=1;
+    print "#  $comment\n" if $comment;
+    print "#  $verbose\n" if ($opt{v} and $verbose);
+    my $cmd = "iptables -I INPUT -s $ip -m comment --comment WEBBAN-OTF -j DROP && echo $ip $today '$verbose' >>$baneados\n";
+    print "#";
+    system "ipinfo $ip 2>/dev/null |grep \"org\" || echo ''";
+    print $cmd;
+    print "\n";
+    if ($opt{x}){
+        system "sudo $cmd"
+    }
+}
+
+# }}}
+# {{{
+sub short_date {
+    # Current date in short format
+    my $time = shift || time;
+    my ( $sec, $min, $hour, $mday, $mon, $year, $wday, undef, $isdst ) =
+        localtime($time);
+    $year += 1900;
+    $mon++;
+    my $date = sprintf "%04d-%02d-%02d", $year, $mon, $mday;
+    return $date;
+}
+
+# }}}

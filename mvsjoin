@@ -1,0 +1,201 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<mvssepara> - Une una libreria en formato IEBUPDTE para subir a HOST
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item mvssepara [-h|--help|-u|-V|--version]
+
+=item mvssepara [-v] F<DIR> F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Toma como entrada un directorio y lo transforma en un fichero en formato
+IEBUPDTE para ser subido a HOST, y allí convertido en una librería.
+
+El objetivo de este script y su pareja F<mvssepara> es acelerar la
+transmisión de librerías HOST mediante FTP.
+
+El procedimiento I<normal> de hacer mget o mput de un conjunto de
+miembros de carpeta, o de una librería en HOST, es extremadamente lento.
+En el caso de las librerías de JCL master puede ocupar alrededor de hora
+y media.
+
+El procedimiento I<rápido>, usando F<mvsjoin> y F<mvssepara>, junto con
+sus correspondientes JCLs en HOST es mucho más ágil, aunque haya que
+hacer varias operaciones "a mano". Del orden de 5 minutos.
+
+=head1 ARGUMENTS
+
+F<DIR> es el nombre del directorio que se quiere convertir.
+
+F<FILE> el el nombre del fichero a generar.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 JCL HOST
+
+Este es un ejemplo del JCL que sería necesario en HOST para convertir
+este fichero IEBUPDTE en una librería.
+
+ //UPCDI54J JOB (123456,123),'UPCDI54',CLASS=A,MSGCLASS=A
+ //*===================================================================
+ //* CREA UNA LIBRERIA A PARTIR DE UN FICHERO SECUENCIAL
+ //* EN FORMATO IEBUPDTE
+ //* ESTE FICHERO SE PUEDE RECIBIR RAPIDAMENTE POR FTP
+ //* Y VOLVER A SEPARARLO EN MVS
+ //*===================================================================
+ //EXPAND   PROC
+ //PASOP01  EXEC PGM=IEFBR14
+ //BORRAME0 DD DSN=UPCDI54.&LIB.2,DCB=(BLKSIZE=0),
+ //            DISP=(MOD,DELETE),UNIT=SYSDA,SPACE=(TRK,(1,1))
+ //*
+ //PASOP02  EXEC PGM=IEBUPDTE,PARM=NEW
+ //SYSPRINT DD DUMMY
+ //SYSIN    DD DSN=UPCDI54.&LIB..NUEVO,DISP=SHR
+ //SYSUT2   DD DSN=UPCDI54.&LIB.2,
+ //            DISP=(NEW,CATLG),SPACE=(CYL,(60,90,3500),RLSE),
+ //            DCB=(RECFM=FB,LRECL=80,BLKSIZE=27920),UNIT=SYSDA
+ //         PEND
+ //**********************************************************************
+ //*  EJECUTAMOS EL PROCEDIMIENTO
+ //**********************************************************************
+ //PASO001  EXEC EXPAND,LIB=SCE5.MS.ENE.JCL
+ //
+
+=head1 SEE ALSO
+
+B<mvssepara>, B<hdfile>, B<hufile>.
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my %opt;
+my $dir;
+my $output;
+
+# }}}
+# {{{ Parametros
+getopts( 'huvV', \%opt ) or usage('Fallo parametros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+$dir    = shift or usage('Falta directorio de entrada');
+$output = shift or usage('Falta fichero de salida');
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Leemos el directorio que vamos a empaquetar
+my @files;
+open OUTPUT, ">$output" or die "No se pudo crear $output. $!\n";
+opendir DIR, $dir or die "No se pudo abrir $dir\n";
+while ( my $f = readdir(DIR) ) {
+    next if -d "$dir/$f";
+    push @files, $f;
+}
+
+# }}}
+# {{{ Empaquetamos
+foreach my $f ( sort @files ) {
+    warn "Procesando $f\n" if $opt{v};
+    my $slurp = '';
+    open FILE, "$dir/$f" or die "No se pudo abrir $dir/$f. $!\n";
+    while ( my $l = <FILE> ) {
+        chomp $l;
+        if ( length($l) > 80 ) {
+            die "Fichero $f. Linea de más de 80 caracteres. Aborting\n";
+        }
+        while ( length($l) < 80 ) {
+            $l .= ' ';
+        }
+        $slurp .= "$l\n";
+    }
+    close FILE;
+    if ( length($slurp) ) {
+        print OUTPUT "./   ADD NAME=$f,LEVEL=00,SOURCE=0\n";
+        print OUTPUT $slurp;
+    } else {
+        print "Miembro vacio $f. No puede ser creado\n";
+        print OUTPUT "./   ADD NAME=$f,LEVEL=00,SOURCE=0\n";
+        print OUTPUT " " x 80;
+        print OUTPUT "\n";
+        print OUTPUT "./   DELETE SEQ1=ALL\n";
+    }
+}
+closedir DIR;
+print OUTPUT "./ ENDUP\n";
+close OUTPUT;
+exit 0;
+
+# }}}

@@ -1,0 +1,16 @@
+#!/usr/bin/perl
+### Borra los thumbnails de aquellos ficheros que no existan
+open FILE, 'find -type f|grep thumb|';
+while ($thumb=<FILE>){
+    chomp $thumb;
+    $orig = $thumb;
+    $orig =~  s/\/\.thumbs// or die "$orig\n";
+    if ($orig =~ /(mp4|avi|mpg|mpeg)/){
+        $orig =~ s/.jpg//;
+    }
+    if (! -f $orig){
+        print "$thumb\n";
+        unlink $thumb;
+    }
+}
+close FILE;

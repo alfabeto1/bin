@@ -1,0 +1,664 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+
+=encoding utf-8
+
+=head1 NAME
+
+B<note> - Gestor de notas de texto
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item note [-v|--verbose] [OPTIONS | ARGUMENTS]
+
+=item note [-h|--help|-u|--usage|-V|--version]
+
+=item note [-w] -a [KEY [KEY]]
+
+=item note [-w] -s NUM/STRING...
+
+=item note [-w] -e NUM/STRING...
+
+=item note [-w] [-S] -l
+
+=item note [-w] [-c] REGEXP REGEXP...
+
+=back
+
+=head1 DESCRIPTION
+
+Gestor de notas de texto.
+
+Almacena notas en un fichero de texto. Permite añadir nuevas notas indicando una
+clave o hacer búsquedas por expresiones regulares.
+
+=head1 ARGUMENTS
+
+Acepta como argumentos cadenas para hacer búsquedas en las notas. Se mostrarán
+las notas que contengan cualquiera de las expresiones regulares indicadas
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-a> [KEY [KEY]], B<--add> [KEY [KEY]]
+
+Añade una nueva nota con las claves indicada como parametros. El contenido de la
+nota se toma por la entrada estándar.
+
+=item B<-c>, B<--complete>
+
+Al realizar la búsqueda, muestra las notas completas que cumplen las expresiones
+regulares. En caso contrario sólo se muestran las líneas coincidentes.
+
+=item B<-D> , B<--delete> NUM
+
+Elimina la nota con el números indicado.
+
+=item B<-e> , B<--edit>   NUM
+
+Edita las notas con los números o textos indicados.
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-l>, B<--list>
+
+Lista las secciones de las notas.
+
+=item B<-s>, B<--search> NUM
+
+Muestra la notas con el número o texto indicado.
+
+=item B<-S>, B<--size>
+
+Muestra el tamaño de cada fichero de nota al listar.
+
+=item B<-u>, B<--usage>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>, B<--verbose>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 EXIT STATUS
+
+=over 4
+
+=item * 1 - No se pudo grabar el fichero de notas
+
+=item * 2 - No se ha encontrado ninguna nota con la expresion buscada
+
+=item * 0 - Todo bien
+
+=back
+
+=head1 FILES
+
+Directorios de notas: F<~/Dropbox/NOTAS>. 
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2019 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a su autor original y
+de acuerdo con los términos de la licencia GPL. (GNU General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luis M. Arocha Hernández <lah.data@gmail.com>.
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use Getopt::Long qw/:config no_ignore_case bundling/;
+use CommonFunc qw/:all/;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION      = substr q$Revision: 0.0 $, 10;
+my $HOME          = $ENV{HOME};
+my $BASEDIR       = "$HOME/Dropbox/NOTAS";
+my $NOTEFILE      = "";
+my $NORMALSCREEN  = 80;
+my $BIGSCREEN     = 95;
+my $VERYBIGSCREEN = 110;
+my $UBERSCREEN    = 120;
+my $cls           = "\ec";
+my $reset         = "\e[0m";
+my $white         = "\e[1;37m";
+my $columns       = $ENV{COLUMNS}||80;
+my @dia = qw/Domingo Lunes Martes Miercoles Jueves Viernes Sabado/;
+my @mes = qw/Enero Febrero Marzo Abril Mayo Junio Julio Agosto Septiembre Octubre Noviembre Diciembre/;
+
+# }}}
+# {{{ Variables
+my %opt;
+my %section;
+my $notedir       = "$HOME/Dropbox/NOTAS";
+# }}}
+# {{{ Parametros
+Getopt::Long::Configure("bundling","no_ignore_case");
+GetOptions (
+            "a|add=s"    => \$opt{a},
+            "c|complete" => \$opt{c},
+            "D|delete=s" => \$opt{D},
+            "d|dir=s"    => \$opt{d},
+            "e|edit=s"   => \$opt{e},
+            "h|help"     => \$opt{h},
+            "l|list"     => \$opt{l},
+            "s|search=s" => \$opt{s},
+            "S|size"     => \$opt{S},
+            "p|print=s"  => \$opt{p},
+            "u|usage"    => \$opt{u},
+            "U|UP"       => \$opt{U},
+            "v|verbose"  => \$opt{v},
+            "V|version"  => \$opt{V},
+            ) or usage('Fallo parámetros');
+
+help()    if $opt{h};
+usage()   if $opt{u};
+version() if $opt{V};
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub add_note ($){
+    my $key  = shift||'unnamed';
+    $key    .= '.md' unless $key =~/\./;
+    my $text;
+    my $file = "$BASEDIR/$key";
+    my $dir;
+    if ($key =~  /\//){
+        $key =~ /(.*)\/(.*)/;
+        $dir = "$BASEDIR/$1";
+    } else {
+        $dir = $BASEDIR;
+    }
+    $dir=~ s#//#/#;
+    $file=~ s#//#/#;
+    print "$cls";
+    
+    if (-f $file){
+        print "Nota existente. Añadiendo información a $file.\n";
+        if ($key =~ /\.md$/){
+            $text = "<!--". "-"x73 . "-->\n\n"."<!-- ".long_date()." -->\n\n";
+        } elsif ($key =~ /\.(sh|txt)$/ ){
+            $text = "-"x80 . "\n\n" ."# ".long_date(). "\n\n";
+        } elsif ($key =~ /\.(sql)$/ ){
+            $text = "-"x80 . "\n\n" ."-- ".long_date(). "\n\n";
+        } elsif ($key =~ /\.(css)$/ ){
+            $text = "/*" . "-"x76 . "*/\n\n" ."/* ".long_date(). " */\n\n";
+        }
+    } else {
+        print "Nota nueva. Creando $file.\n";
+        if ($key =~ /\.md$/){
+            $text = "<!-- ".long_date(). " -->\n\n";
+        } elsif ($key =~ /\.(sh|txt)$/ ){
+            $text = "# ".long_date(). "\n\n";
+        } elsif ($key =~ /\.(sql)$/ ){
+            $text = "-- ".long_date(). "\n\n";
+        } elsif ($key =~ /\.(css)$/ ){
+            $text = "/* ".long_date(). " */\n\n";
+        }
+
+    }
+    print $text;
+    while (<>){
+        chomp;
+        $text .= $_ ;
+        $text .= "\n";
+    }
+    $text .= "\n";
+    $text .= "\n";
+    print "DIR=$dir\n";
+    unless (-d $dir){
+        print "Creando directorio $dir\n";
+        mkdir $dir;
+    }
+    if (open FILE, ">>",$file){
+        print FILE $text;
+        close FILE;
+        my $list='';
+        read_notes($notedir);
+        do_list($list);
+    } else {
+        warn "No se pudo grabar $file. $!";
+        exit 1;
+    }
+}
+# }}}
+# {{{
+sub do_list($){
+    my $term    = shift ||'';
+    my $n       = 0;
+    my $mycols  = 2;
+    if ($columns >= $NORMALSCREEN){$mycols=3}
+    if ($columns >= $BIGSCREEN){$mycols=4}
+    if ($columns >= $VERYBIGSCREEN){$mycols=5}
+    if ($columns >= $UBERSCREEN){$mycols=6}
+    my $wide    = int(($columns +1-$mycols)/$mycols)-3;
+    my @lines   =qw//;
+    my $lines   =0;
+    my $antk1   = '';
+    my $size    = '';
+    print "$cls";
+    print "Directorio actual: $notedir\n";
+    # print join "\n", sort keys %section;
+    # print "\n";
+    foreach my $k(sort {uc($a) cmp uc($b)} keys %section){
+        my ($k1,$k2) = split /\t/, $k;
+        if ($k1 eq ''){
+            next unless -f "$notedir/$k2";
+        }
+        next if $k2 eq 'images/';
+        if ($antk1 ne $k1){
+            $n = int($n/10+.999)*10;
+            $antk1 = $k1;
+            $k1 = substr($k1,0,$wide);
+            $k1 = $white . $k1 . "-"x($wide+3-mylength($k1)-4) . $reset;
+            push @lines,(sprintf "%03d %s", $n,$k1);
+        }
+        # $k2 =~ s/\.md$//;
+        # $k2 =~ s/\.txt$//;
+        $n++;
+        if ($term){
+            my $sw=0;
+            if ($k1 =~ /$term/i or $k2 =~ /$term/i){
+                $sw=1;
+            } else {
+                $k=~ s/\t/\//;
+                my $t = read_file("$notedir/$k");
+                if ($t =~  /$term/i){
+                    $sw=1;
+                }
+            }
+            next unless $sw;
+        }
+        my $c = () = $section{$k} =~ /\n/g;
+        $c++;
+        $k2 =~ s/\.md$//g;
+        $k2 = substr($k2,0,$wide-1);
+        if ($k2){
+            if ($opt{S}){
+                $k2 = substr($k2,0,$wide-6);
+                $k=~ s/\t/\//;
+                my $size = hsize_of("$notedir/$k");
+                $k2 = $k2 . " "x($wide-1-mylength($k2)-5).$size;
+            } else {
+                $k2 = substr($k2,0,$wide-1);
+                $k2 = $k2 . " "x($wide-1-mylength($k2));
+            }
+            push @lines,(sprintf "%03d %s", $n,$k2) ;
+        }
+    }
+    $lines = scalar @lines;
+    my $lines_in_column = int ($lines/$mycols+.999999);
+    for $n (0.. $lines_in_column-1){
+        for my $m (1 .. $mycols){
+            my $pos = (($m-1)*$lines_in_column)+$n;
+            $lines[$pos]=~ s/_/ /g;
+            print $lines[$pos];
+            print $white.'|'.$reset unless $m == $mycols;
+        }
+        print "\n";
+    }
+}
+# }}}
+# {{{
+sub do_search ($$){
+    my $fullnote=shift||0;
+    my $item    =shift||return 0;
+    print "$cls";
+    system "grep --color -ri $item $notedir|grep -v html:" || return 2;
+    return 0;
+}
+
+# }}}
+# {{{
+sub save_notedir($){
+    my $notedir=shift;
+    $notedir =~  s/\/\//\//;
+    if (open FILE, ">","$BASEDIR/workingdir"){
+        print FILE $notedir;
+        close FILE;
+    } else {
+        warn "No se pudo grabar workingdir. $!";
+        exit 1;
+    }
+}
+# }}}
+# {{{
+sub is_numeric($){
+    my $t = shift;
+    if ($t =~ /^[0-9]+$/){
+        return 1;
+    }
+    return 0;
+}
+# }}}
+# {{{
+sub do_edit($){
+    my $note = shift || return;
+    my $file = '';
+    my $n    = 0;
+    my $antk1='';
+    foreach my $k(sort {uc($a) cmp uc($b)} keys %section){
+        my ($k1,$k2) = split /\t/, $k;
+        if ($k1 eq ''){
+            next unless -f "$notedir/$k2";
+        }
+        next if $k2 eq 'images/';
+        if ($antk1 ne $k1){
+            $n = int($n/10+.999)*10;
+            $antk1 = $k1;
+            if ($n == $note or $k =~ /$note/i){
+                # print "Si\n";
+                if ($file){
+                    $file .= " $notedir/$k1"
+                } else {
+                    $file = "$notedir/$k1"
+                }
+                $file=~ s/\/\//\//;
+            }
+        }
+        # next unless $k2;
+        $n++;
+        if (($n == $note  and is_numeric($note))or 
+            ( !is_numeric($note) and $k =~ /$note/i)){
+            if ($file){
+                $file .= " $notedir/$k1/$k2"
+            } else {
+                $file = "$notedir/$k1/$k2"
+            }
+            $file=~ s/\/\//\//;
+        }
+    }
+    print "$file\n";
+    if ($file eq ''){
+        print ("No se seleccionó ningún fichero\n");
+        exit;
+    }
+    foreach (split / /,$file){
+        if (-d $_){
+            # Do nothing
+            # save_notedir($_);
+            # $notedir=$_;
+            # read_notes($notedir);
+            # do_list('');
+        } else{
+            sleep 1;
+            if ($_ =~  /(pdf|jpg|tgz|png|gif|jpeg)$/){
+                system "st $_"
+            } else {
+                system "vim $_";
+            }
+        }
+    }
+} 
+# }}}      
+# {{{
+sub read_notes($) {
+    my $notedir=shift;
+    if (! -d $notedir){
+        return;
+    }
+    my $k1='MIX';
+    my $k2='MIX';
+    my $k = "$k1\t$k2";
+    my $newdir='';
+    %section = ();
+    if (open FILE, "find $notedir/ -maxdepth 2|"){
+        while (<FILE>){   
+            my $isdir=0;
+            chomp;
+            if (-d $_){
+                $isdir=1
+            }
+            s/$notedir//;
+            s/.*\/(.*)\//$1\//;
+            next if /\.\/$/;
+            next if /\.(jpg|png|gif|ogg|mp3|html)$/;
+            next if /index.md/;
+            if (/\//){
+                s/\//\t/;
+            } else {
+                s/^/\t/;
+            }
+            $_.='/' if $isdir;
+            $section{$_} = '';
+        }
+        close FILE;
+    } else {
+        warn "No se pudo leer el directorio de notas $notedir. $!\n";
+        exit 1;
+    }
+}
+# }}}
+# {{{
+sub change_dir($){
+    my $note = shift||return;
+    my $n    = 0;
+    my $antk1='';
+    foreach my $k(sort {uc($a) cmp uc($b)} keys %section){
+        my ($k1,$k2) = split /\t/, $k;
+        if ($k1 eq ''){
+            next unless -d "$notedir/$k2";
+        }
+        next if $k2 eq 'images/';
+        if ($antk1 ne $k1){
+            $n = int($n/10+.999)*10;
+            $antk1 = $k1;
+        }
+        next unless $k2;
+        $n++;
+        print("$note - $n - $k1 \n");
+        if ((is_numeric($note) and $n == $note) or $note =~ /$k1/){
+            print("$notedir/$k1\n");
+            # save_notedir($_);
+            # $notedir=$_;
+            # read_notes($notedir);
+            # do_list('');
+            last
+        }
+    }
+} 
+# }}}      
+# {{{
+sub del_note($){
+    my $note = shift||return;
+    my $n    = 0;
+    my $antk1='';
+    foreach my $k(sort {uc($a) cmp uc($b)} keys %section){
+        my ($k1,$k2) = split /\t/, $k;
+        if ($k1 eq ''){
+            next unless -f "$notedir/$k2";
+        }
+        next if $k2 eq 'images/';
+        if ($antk1 ne $k1){
+            $n = int($n/10+.999)*10;
+            $antk1 = $k1;
+        }
+        next unless $k2;
+        $n++;
+        if ($n == $note){
+            system "rm -vi '${notedir}/${k1}/${k2}'";
+        }
+    }
+} 
+# }}}      
+# {{{
+sub print_note($){
+    # print "$cls";
+    my $note = shift||1;
+    my $n    = 0;
+    my $sw   = 0;
+    my $antk1='';
+    foreach my $k(sort {uc($a) cmp uc($b)} keys %section){
+        my ($k1,$k2) = split /\t/, $k;
+        if ($k1 eq ''){
+            next unless -f "$notedir/$k2";
+        }
+        next if $k2 eq 'images/';
+        if ($antk1 ne $k1){
+            $n = int($n/10+.999)*10;
+            $antk1 = $k1;
+        }
+        next unless $k2;
+        $n++;
+        if ($n == $note or $k =~ /$note/i){
+            if ($file){
+                $file .= " $notedir/$k1/$k2"
+            } else {
+                $file = "$notedir/$k1/$k2"
+            }
+            $file=~ s/\/\//\//;
+        }
+        # if ($n == $note or $k =~ /$note/i){
+        #     print "-"x80 . "\n\n" if $sw;
+        #     print ${white};
+        #     printf "%03d - %s/%s",$n, ${k1},${k2};
+        #     print "${reset}\n";
+        #     print read_file("${notedir}/${k1}/${k2}");
+        #     $sw++;
+        # }
+    }
+    if ($file){
+        sleep 1;
+        system "less $file";
+    } else {
+        print "Not found\n";
+    }
+} 
+# }}}      
+# {{{
+sub hsize_of{
+    my $file= shift||return '   0k';
+    my $t   = read_file($file);
+    my $l   = mylength($t);
+    $l/= 1024;
+    $l = int($l+.5);
+    if ($l < 1024){
+        return sprintf "%4dk",$l;
+    }
+    $l/= 1024;
+    $l = int($l+.5);
+    if ($l < 1024){
+        return sprintf "%4dM",$l;
+    }
+    $l/= 1024;
+    $l = int($l+.5);
+    return sprintf "%4dG",$l;
+}
+# }}}
+# {{{
+sub mylength() {
+    my $s = shift||return 0;
+    $s=~s/á/x/gi;
+    $s=~s/é/x/gi;
+    $s=~s/í/x/gi;
+    $s=~s/ó/x/gi;
+    $s=~s/ú/x/gi;
+    $s=~s/ñ/x/gi;
+    return length($s)
+}
+# }}}
+# {{{
+sub read_file($) {
+    # Lee un fichero completo y devuelve  el contenido en una variable
+    my $file = shift||return '';
+    local $/;
+    local *FILE;
+    my $content='';
+    if (open FILE,$file){
+        $content = <FILE>;
+        close FILE;
+    } else {
+        #write_log("READ FILE. No existe $file");
+    }
+    return $content;
+}
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Leer fichero de directorio de trabajo
+my $t = read_file("$BASEDIR/workingdir");
+if ($t){
+    chomp $t;
+    $notedir=$t;
+}
+# }}}
+# {{{
+# Procesar según opciones
+if ($opt{a}){
+    add_note($opt{a});
+} elsif ($opt{e}) {
+    read_notes($notedir);
+    do_edit($opt{e});
+} elsif ($opt{d}) {
+    read_notes($notedir);
+    change_dir($opt{d})
+} elsif ($opt{D}) {
+    read_notes($notedir);
+    del_note($opt{D});
+} elsif ($opt{U}) {
+    $notedir =~ s/\/$//;
+    $notedir =~ s/[^\/]+$//;
+    save_notedir($notedir);
+    read_notes($notedir);
+    do_list('');
+} elsif ($opt{l}) {
+    my $list='';
+    read_notes($notedir);
+    if (@ARGV){
+        $list=shift @ARGV;
+    }
+    do_list($list);
+} elsif ($opt{s}) {
+    my $s =  do_search($opt{c},$opt{s});
+} elsif ($opt{p}) {
+    read_notes($notedir);
+    print_note($opt{p});
+} else {
+    if (not $ARGV[0]){
+        system "vim $BASEDIR/Tareas.md"
+    } else {
+        $notedir = $BASEDIR;
+        read_notes($notedir);
+        do_edit($ARGV[0])
+    }
+}
+exit 0;
+
+# }}}

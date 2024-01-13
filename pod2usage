@@ -1,0 +1,8 @@
+#!/bin/sh
+### Pod2usage wrapper for perl < 5.22 (fails with utf)
+ver=$(perl -V|head -1 |perl -ane 'print $F[7]')
+if [ "$ver" -lt "22" ]; then
+    /usr/bin/pod2usage $* |latutf
+else
+    /usr/bin/pod2usage $*
+fi

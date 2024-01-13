@@ -1,0 +1,250 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+B<copia> - Proceso de backup de mi ordenador
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<copia> [-h|-u|-V]
+
+=item B<copia> [-d|-w|-f] [-l] [-v] [-t]
+
+=back
+
+=head1 DESCRIPTION
+
+Copia a disco de los directorios principales del servidor.
+
+En su version rapida se usa como destino el segundo disco interno, y sólo los
+directorios: F</home>, F</etc>, F</pub/fotos>. Parcial a disco pub1, para hacer
+diaria.
+
+En su version mensual se usa como destino el disco USB, copiando los directorios
+anteriores, y además F</pub/Books>, F</pub/Video> y F</pub1/Wallpapers>.
+Completa a disco WD, para hacer mensual.
+
+Se utiliza para la copia el comando C<rsync>, por lo que cada vez que se ejecuta
+se hacen en destino sólo los cambios necesarios (borrados, cambios y nuevos).
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-d> 
+
+Copia diaria a disco interno
+
+=item B<-m> 
+
+Copia mensual a disco externo
+
+=item B<-h> 
+
+Muestra la información de ayuda completa.
+
+=item B<-l> 
+
+Regenera listado de ficheros de la maquina.
+
+=item B<-t> 
+
+Trying. No ejecuta, sólo muestra lo que se haría.
+
+=item B<-u> 
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v> 
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V> 
+
+Muestra la versión del comando.
+
+=item B<-w> 
+
+Copia semanal a disco interno
+
+=back
+
+=head1 FILES
+
+Los ficheros que correspondan a los patrones que se encuentran en el fichero
+F<~/etc/backup.exclude> no serán copiados.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+function help {
+    pod2text -c $0
+    exit 1
+}
+
+# }}}
+# {{{
+function usage {
+    if test "$*"; then
+        echo $*
+    fi
+    pod2usage -verbose 1 $0
+    exit 1
+}
+
+# }}}
+# {{{
+function dolog {
+    echo [$(date +%H:%M:%S)] $*
+    echo [$(date +%H:%M:%S)] $* >>$LOGFILE
+}
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{
+# Variables
+VERSION="$Revision: 3.7 $"
+VERSION=${VERSION#:\ }
+VERSION=${VERSION%\ \$}
+DEST=/pub1
+EXC='--exclude-from=/home/luis/etc/backup.exclude'
+FILES="/home /etc /pub/fotos /root /var/www"
+GRUPO2="/pub/copias-servidores /pub/Books /pub/Video /pub1/Wallpapers /pub/Audio"
+HOWMANY=45                                      # Un mes y medio
+LOGFILE=$HOME/copia.log
+OPTIONS='-ail --delete --delete-excluded'
+TODAY=''
+mode=1
+trying=0
+verbose=0
+# }}}
+# {{{
+# Parametros
+while getopts dhlmutvVw options; do
+    case "$options" in
+        l) list=1;;
+        d) mode=1;;
+        w) mode=2;;
+        m) mode=3;;
+        h) help ;;
+        t) trying=1 ;;
+        u) usage ;;
+        v) verbose=1 ;;
+        V) echo "${0/*\//} - $VERSION";exit 1;;
+       \?) usage "Fallo parámetros" ;;
+    esac
+done
+shift $(( $OPTIND - 1 ))
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Settings depending on mode
+if [[ $mode == 1 ]]; then
+    dolog "Set for mode 1 - Daily"
+    HOWMANY=7    # Una semana
+    TODAY=Copia-D-`date +%Y-%m-%d`
+    PREFIX=Copia-D
+fi
+if [[ $mode == 2 ]]; then
+    dolog "Set for mode 2 - Weekly"
+    HOWMANY=16   # Casi 4 meses  
+    TODAY=Copia-W-`date +%Y-%m-%d`
+    PREFIX=Copia-W
+fi
+if [[ $mode == 3 ]]; then
+    dolog "Set for mode 3 - Monthly"
+    HOWMANY=24   # Dos años
+    FILES="$FILES $GRUPO2"
+    DEST=/media/luis/WD2TB
+    TODAY=Copia-M-`date +%Y-%m-%d`
+    PREFIX=Copia-M
+fi
+# }}}
+# {{{
+dolog "Inicio copia a $DEST/$TODAY"
+# }}}
+# {{{
+# Hacer listado de todos los ficheros
+if [[ $list == 1 ]]; then
+    dolog "Haciendo listado"
+    ls -lR / |gzip >/root/files.txt.gz
+fi
+# }}}
+# {{{
+dolog "Crear nuevo directorio de copia, si no existe. A partir del último."
+if [[ ! -d $DEST/$TODAY ]] ; then
+    # Encontrar ultima version de copia
+    LAST=`ls -1dr $DEST/$PREFIX-????-??* 2>/dev/null|grep -v total|head -1`
+    dolog "Creando directorio copia $DEST/$TODAY a partir de $LAST"
+    if [[ $verbose == 1 ]] ; then
+        echo mkdir -p $DEST/$TODAY
+        if [[ ! "$LAST" == "" ]] ; then
+            echo cp -al $LAST/* $DEST/$TODAY/
+        fi
+    fi
+    if [[ $trying == 1 ]] ; then
+        dolog "No ejecutamos."
+    else
+        mkdir -p $DEST/$TODAY
+        if [[ ! "$LAST" == "" ]] ; then
+            cp -al $LAST/* $DEST/$TODAY/
+        fi
+    fi
+fi
+# }}}
+# {{{
+dolog "Actualizando directorio copia $DEST/$TODAY"
+if [[ $verbose == 1 ]] ; then
+    echo "rsync $OPTIONS $EXC $FILES $DEST/$TODAY/ |tee -a $LOGFILE"
+fi
+if [[ $trying == 1 ]] ; then
+    dolog "No ejecutamos."
+else
+    rsync $OPTIONS $EXC $FILES $DEST/$TODAY/ |tee -a $LOGFILE
+fi
+
+# }}}
+# {{{
+dolog "Borrando copias antiguas. Se mantienen $HOWMANY."
+dolog A borrar: `ls -1d $DEST/$PREFIX-????-??* -tr 2>/dev/null |head -n -$HOWMANY`
+if [[ $trying == 1 ]] ; then
+    dolog No borramos
+else
+    rm -rf `ls -1d $DEST/$PREFIX*-????-??* -tr 2>/dev/null |head -n -$HOWMANY`
+fi
+# }}}
+dolog "Backup finalizado. Destino: $DEST/$TODAY"
+notify "Backup finalizado. Destino: $DEST/$TODAY"
+exit 0

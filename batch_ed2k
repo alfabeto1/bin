@@ -1,0 +1,9 @@
+#!/usr/bin/perl
+### Process multiple ed2k magnet or torrent links.
+# Read one by one from stdinput
+while (<>){
+    chomp;
+    if (length($_)){
+        system "magnet '$_'"
+    }
+}

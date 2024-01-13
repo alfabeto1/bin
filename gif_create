@@ -1,0 +1,6 @@
+#!/bin/sh
+### Crea fichero animado gif a partir de varias imagenes
+# Tamaño reducido 
+convert --verbose -delay 100 -loop 0 -dispose previous \
+    -layers Optimize -scale 25% \
+    $* imagen.gif

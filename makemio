@@ -1,0 +1,5 @@
+#!/bin/bash
+### Crear fichero mio.tgz
+cd $HOME
+tar -chzf mio.tgz bin var etc lib
+echo Done!

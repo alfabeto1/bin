@@ -1,0 +1,467 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<new_pl> - Crea un nuevo comando perl con la funcionalidad básica
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<new_pl> [-h|--help|-u|-V|--version]
+
+=item B<new_pl> [-c] [-d] [-f] [-v] [-i SCRIPT] [F<COMANDO>] [DESCRIPCION...]
+
+=back
+
+=head1 DESCRIPTION
+
+Crea un nuevo comando perl, con lo básico para acelerar el proceso de
+programación. El nuevo comando ya dispone de un conjunto completo de
+documentación, llamadas a help o usage, opciones, estructura de plegado vim,
+etcétera.
+
+Este comando deberá ser modificado para que realize su función, pero todo lo
+básico ya esta en su lugar.
+
+Si el comando a crear ya existe, se guarda un backup.
+
+También se puede utilizar para I<envolver> un script ya existente con todo esto.
+
+=head1 ARGUMENTS
+
+Si no se indica un nombre de F<COMANDO>, se crea uno llamado F<unnamed>.
+
+Si no se indica una descripción para el mismo, se pone una descripción por
+defecto.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-a>
+
+Genera el comando SIN ACENTOS.
+
+=item B<-c>
+
+No genera el fichero del comando, solo lo muestra en
+pantalla.
+
+=item B<-d>
+
+Solo documentación.
+
+=item B<-f>
+
+Full. POD completa. Se incluyen varios apartados en la
+documentación, de menor uso, como CAVEATS, SEE ALSO, etc.
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-i SCRIPT> (existing filename)
+
+Usa el script indicado como origen, I<envolviendolo> con el estándar.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 CAVEATS
+
+La documentación generada con la opción B<-f> es con toda seguridad muchísima
+más de la necesaria y habrá que borrar varios apartados, pero siempre es más
+fácil borrar unas cuantas líneas que volverlas a crear.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.2 $, 10;
+
+# }}}
+# {{{ Variables
+my $date     = long_date();
+my $year     = year();
+my $author   = 'Luis M. Arocha Hernández';
+my $owner    = $author;
+my $email    = '<lah.data@gmail.com>';
+my $extradoc = '';             # Secciones poco usadas de la documentacion
+my $revision = 'Revision: 0.0 $';
+my $seccion  = '';
+my $template = '';
+my %seccion;
+my %opt;                       # Getopts options hash
+my $name;                      # Commmand name
+my $desc;                      # Command description
+my $script = "print \"Done\\n\";\n"; # script inicial
+
+# }}}
+# {{{ Parametros
+getopts( 'acdfhi:uvV', \%opt ) or usage('Fallo parámetros');
+help()  if $opt{h};
+usage() if $opt{u};
+if ($opt{V}){version();exit 1;}
+$name = shift   || 'unnamed';
+$desc = "@ARGV" || 'A very useful command to do nothing at all';
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Leemos las secciones del template y preparamos segun opciones
+while (<DATA>) {
+    if (/^-+ *SECCION +(\w+)/) {
+        $seccion = $1;
+        next;
+    }
+    $seccion{$seccion} .= $_;
+}
+if ( $opt{d} ) {
+    $template = $seccion{DOC};
+} else {
+    $template = $seccion{CODE};
+}
+if ( $opt{f} ) {
+    $extradoc = $seccion{EXTRADOC};
+}
+
+# }}}
+# {{{
+# Leemos script de entrada, si lo hubiera
+if ($opt{i}){
+    print "Leyendo el script de entrada $opt{i}\n" if $opt{v};
+    $script =slurp($opt{i}) or die "No se puede leer $opt{i}. $!\n";
+    if ($script !~ s/^#!.*perl.*\n//){
+        print "No es un script válido\n";
+        exit 1;
+    }
+}
+
+# }}}
+# {{{ Procesar el template
+$template =~ s/_DOC_/$seccion{DOC}/g;
+$template =~ s/_EXTRADOC_/$extradoc/g;
+$template =~ s/_REVISION_/$revision/g;
+$template =~ s/_AUTHOR_/$author/g;
+$template =~ s/_DATE_/$date/g;
+$template =~ s/_EMAIL_/$email/g;
+$template =~ s/_DESCRIPTION_/$desc/g;
+$template =~ s/_NAME_/$name/g;
+$template =~ s/_OWNER_/$owner/g;
+$template =~ s/_YEAR_/$year/g;
+$template =~ s/_SCRIPT_/$script/g;
+$template =~ s/\(\(\(/\{\{\{/g;
+$template =~ s/\)\)\)/\}\}\}/g;
+$template =~ s/\n--/\n=/g;
+
+# }}}
+# {{{ Crear el comando
+if ($opt{a}){
+    $template =~ s/Á/A/g;
+    $template =~ s/É/E/g;
+    $template =~ s/Í/I/g;
+    $template =~ s/Ó/O/g;
+    $template =~ s/Ú/U/g;
+    $template =~ s/á/a/g;
+    $template =~ s/é/e/g;
+    $template =~ s/í/i/g;
+    $template =~ s/ó/o/g;
+    $template =~ s/ú/u/g;
+}
+if ( $opt{c} ) {
+    print $template;
+}
+else {
+    if ( -e $name ) {
+        print  "$name ya existe. Se hace copia.\n" if $opt{v};
+        rename "$name","$name.old" or die "No se puede hacer copia de seguridad. $!\n";
+    }
+    open FILE, ">$name" or die $!;
+    print FILE $template;
+    close FILE;
+    system "chmod u+x $name";
+    print "Comando $name creado\n";
+}
+exit 0;
+
+# }}}
+#==============================================================================#
+# DATA                                                                         #
+#==============================================================================#
+# {{{
+__DATA__
+------------------------------------- SECCION CODE
+#!/usr/bin/perl
+_DOC_#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# ((( Modulos y pragmas
+use strict;
+use Getopt::Long qw/:config no_ignore_case bundling/;
+use CommonFunc qw/:all/;
+
+# )))
+# ((( Constantes (o casi)
+our $VERSION = substr q$_REVISION_, 10;
+
+# )))
+# ((( Variables
+my %opt;
+
+# )))
+# ((( Parametros
+Getopt::Long::Configure("bundling","no_ignore_case");
+GetOptions (
+            "h|help"     => \$opt{h},
+            "t|test"     => \$opt{t},
+            "u|usage"    => \$opt{u},
+            "v|verbose"  => \$opt{v},
+            "V|version"  => \$opt{V},
+            ) or usage('Fallo parámetros');
+
+help()    if $opt{h};
+usage()   if $opt{u};
+version() if $opt{V};
+
+# )))
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# (((
+_SCRIPT_
+exit 0;
+
+# )))
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# (((
+
+# )))
+------------------------------------- SECCION DOC
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# (((
+
+--encoding utf-8
+
+--head1 NAME
+
+B<_NAME_> - _DESCRIPTION_
+
+--head1 SYNOPSIS
+
+--over 4
+
+--item _NAME_ [-h|--help|-u|--usage|-V|--version]
+
+--item _NAME_ [-v|--verbose] [-t|--test] F<FILE>
+
+--back
+
+--head1 DESCRIPTION
+
+_DESCRIPTION_
+
+--head1 ARGUMENTS
+
+A qué corresponde cada argumento posicional. Valores por defecto.
+
+--head1 OPTIONS
+
+--over 4
+
+--item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+--item B<-t>, B<--test>
+
+No ejecuta. Solo muestra lo que se haría.
+
+--item B<-u>, B<--usage>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+--item B<-v>, B<--verbose>
+
+Muestra información detallada durante la ejecución.
+
+--item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+--back
+_EXTRADOC_
+--head1 EXIT STATUS
+
+Listar los posibles valores de salida del programa y las condiciones en que esos valores son
+devueltos.
+
+--head1 FILES
+
+Relación exaustiva de los ficheros utilizados por el programa, como ficheros de configuración,
+ficheros de arranque, o ficheros sobre los que el programa opera. Especificar nombre y ruta.
+
+--head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+--head1 COPYRIGHT & LICENSE
+
+Copyright _YEAR_ el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a su autor original y
+de acuerdo con los términos de la licencia GPL. (GNU General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+--head1 AUTHOR
+
+_AUTHOR_ _EMAIL_.
+
+--cut
+
+# )))
+----------------------------- SECCION EXTRADOC
+
+--head1 SUBROUTINES/METHODS
+
+--over 4
+
+--item xxx
+
+--item xxx
+
+--back
+
+--head1 EXIT STATUS
+
+Listado de los posibles valores de salida del programa y su significado.
+
+--head1 DIAGNOSTICS
+
+Una lista de cada mensaje de error o aviso que el script puede generar (incluso los que "nunca
+suceden"), con una explicación completa de cada problema, una o más causas probables y las
+soluciones posibles.
+
+--head1 CONFIGURATION
+
+Explicación completa del sistema de configuración utilizado por el programa, incluyendo nombres y
+localizaciones de los ficheros de configuración y la sintaxis de los mismos.
+
+--head1 ENVIRONMENT
+
+Explicación de las variables de entorno que se utilizan en el programa o sus módulos.
+
+--head1 DEPENDENCIES
+
+A list of all the other modules that this module relies upon, including any restrictions on
+versions, and an indication of whether these required modules are part of the standard Perl
+distribution, part of the module's distribution, or must be installed separately.
+
+--head1 INCOMPATIBILITIES
+
+A list of any modules that this module cannot be used in conjunction with. This may be due to name
+conflicts in the interface, or competition for system or program resources, or due to internal
+limitations of Perl (for example, many modules that use source code filters are mutually
+incompatible).
+
+--head1 EXAMPLES
+
+Many people learn better by example than by explanation. Providing a /demo directory stocked with
+well-commented examples is an excellent idea, but your users might not have access to the original
+distribution, and the demos are unlikely to have been installed for them. Adding a few illustrative
+examples in the documentation itself can greatly increase the "learnability" of your code.
+
+--head1 FREQUENTLY ASKED QUESTIONS
+
+Incorporating a list of correct answers to common questions may seem like extra work (especially
+when it comes to maintaining that list), but in many cases it actually saves time. Frequently asked
+questions are frequently emailed questions, and you already have too much email to deal with. If you
+find yourself repeatedly answering the same question by email, in a newsgroup, on a web site, or in
+person, answer that question in your documentation as well. Not only is this likely to reduce the
+number of queries on that topic you subsequently receive, it also means that anyone who does ask you
+directly can simply be directed to read the fine manual.
+
+--head1 COMMON USAGE MISTAKES
+
+This section is really "Frequently Unasked Questions". With just about any kind of software, people
+inevitably misunderstand the same concepts and misuse the same components. By drawing attention to
+these common errors, explaining the misconceptions involved, and pointing out the correct
+alternatives, you can once again pre-empt a large amount of unproductive correspondence. Perl itself
+provides documentation of this kind, in the form of the perltrap manpage.
+
+--head1 NOTES
+
+Cualquier otra cosa que no se haya contemplado en los demás apartados.
+
+--head1 SEE ALSO
+
+Often there will be other modules and applications that are possible alternatives to using your
+software. Or other documentation that would be of use to the users of your software. Or a journal
+article or book that explains the ideas on which the software is based. Listing those in a "See
+Also" section allows people to understand your software better and to find the best solution for
+their problem themselves, without asking you directly[*].
+
+[*] By now you have no doubt detected the ulterior motive for providing more extensive user manuals
+and written advice. User documentation is all about not having to actually talk to users.
+
+--head1 ACKNOWLEDGEMENTS
+
+Reconocer cualquier ayuda que hayas recibido en el desarrollo y mejora de tu software es simplemente
+buena educación. Pero expresar aprecio no es sólo cortesía; también es en tu propio interés.
+Inevitablemente la gente te enviará informes de errores en tu software. Es preferible que te envíen
+informes de errores acompañados por parches que funcionen. Dar las gracias publicamente a aquellos
+que ya han hecho esto en el pasado, es una buena manera de recordar al resto que los parches son
+siempre bienvenidos.
+
+--------------------------------------- SECCION END OF EXTRADOC
+# }}}

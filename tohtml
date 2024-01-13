@@ -1,0 +1,358 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<tohtml> - Convierte caracteres especiales al formato html
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item tohtml [-h|--help|-u|-V|--version]
+
+=item tohtml [-v] [-r]  [F<INPUTFILE> [F<OUTPUTFILE>]]
+
+=back
+
+=head1 DESCRIPTION
+
+Convierte caracteres especiales al formato html.
+
+Si no se especifican ambos ficheros (entrada y salida), se utilizarán la entrada
+y salida estándar.
+
+Si se especifica sólo el fichero de entrada, entonces se creará una copia de
+seguridad (con .bak), y el fichero será modificado.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>
+
+Muestra la ayuda completa.
+
+=item B<-r>
+
+Reverse. Convierte de formato html a caracteres especiales.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my %opt;
+my $input;
+my $output;
+
+# }}}
+# {{{ Parametros
+getopts( 'hruvV', \%opt ) or usage('Fallo parámetros');
+help()              if $opt{h};
+usage()             if $opt{u};
+if ($opt{V}){version();exit 1;}
+warn "ARGS=@ARGV\n" if $opt{v};
+$input  = shift || '-';
+$output = shift || '>-';
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Leer la entrada
+undef $/;
+open FILE, $input;
+$_=<FILE>;
+close FILE;
+
+# }}}
+# {{{
+# Cambiamos valores
+if ( $opt{r} ) {
+    # Revertimos. De html a utf-8
+    # Raros                                            # {{{
+    s/\&#10140;/==>>/g;
+    s/\&rarr;/-->/g;
+    s/\&rArr;/==>/g;
+    s/\&larr;/<--/g;
+    s/\&lArr;/<==/g;
+
+    # }}}
+    # Graves                                           # {{{
+    s/\&agrave;/à/g;
+    s/\&eacute;/è/g;
+    s/\&igrave;/ì/g;
+    s/\&ograve;/ò/g;
+    s/\&ugrave;/ù/g;
+    s/\&Agrave;/À/g;
+    s/\&Eacute;/È/g;
+    s/\&Igrave;/Ì/g;
+    s/\&Ograve;/Ò/g;
+    s/\&Ugrave;/Ù/g;
+
+    # }}}
+    # Acutes                                           # {{{
+    s/\&aacute;/á/g;
+    s/\&eacute;/é/g;
+    s/\&iacute;/í/g;
+    s/\&oacute;/ó/g;
+    s/\&uacute;/ú/g;
+    s/\&Aacute;/Á/g;
+    s/\&Eacute;/É/g;
+    s/\&Iacute;/Í/g;
+    s/\&Oacute;/Ó/g;
+    s/\&Uacute;/Ú/g;
+
+    # }}}
+    # Umlaut                                           # {{{
+    s/\&auml;/ä/g;
+    s/\&euml;/ë/g;
+    s/\&iuml;/ï/g;
+    s/\&ouml;/ö/g;
+    s/\&uuml;/ü/g;
+    s/\&Auml;/Ä/g;
+    s/\&Euml;/Ë/g;
+    s/\&Iuml;/Ï/g;
+    s/\&Ouml;/Ö/g;
+    s/\&Uuml;/Ü/g;
+
+    # }}}
+    # Circumflex                                       # {{{
+    s/\&acirc;/â/g;
+    s/\&ecirc;/ê/g;
+    s/\&icirc;/î/g;
+    s/\&ocirc;/ô/g;
+    s/\&ucirc;/û/g;
+    s/\&Acirc;/Â/g;
+    s/\&Ecirc;/Ê/g;
+    s/\&Icirc;/Î/g;
+    s/\&Ocirc;/Ô/g;
+    s/\&Ucirc;/Û/g;
+
+    # }}}
+    # Tilde                                            # {{{
+    s/\&atilde;/ã/g;
+    s/\&otilde;/õ/g;
+    s/\&Atilde;/Ã/g;
+    s/\&Otilde;/Õ/g;
+
+    # }}}
+    # Spanish et al                                    # {{{
+    s/\&ntilde;/ñ/g;
+    s/\&Ntilde;/Ñ/g;
+    s/\&iquest;/¿/g;
+    s/\&iexcl;/¡/g;
+    s/\&ccedil;/ç/g;
+    s/\&Ccedil;/Ç/g;
+    s/\&euro;/€/g;
+    s/\&ordm;/º/g;
+    s/\&ordf;/ª/g;
+
+    # }}}
+} else {
+    # De utf8 o latin a html
+    # Raros                                            # {{{
+    s/==>>/&#10140;/g;
+    s/-->/&rarr;/g;
+    s/==>/&rArr;/g;
+    s/<--/&larr;/g;
+    s/<==/&lArr;/g;
+
+    # }}}
+    # UTF
+    # Graves                                           # {{{
+    s/à/\&agrave;/g;
+    s/è/\&eacute;/g;
+    s/ì/\&igrave;/g;
+    s/ò/\&ograve;/g;
+    s/ù/\&ugrave;/g;
+    s/À/\&Agrave;/g;
+    s/È/\&Eacute;/g;
+    s/Ì/\&Igrave;/g;
+    s/Ò/\&Ograve;/g;
+    s/Ù/\&Ugrave;/g;
+
+    # }}}
+    # Acutes                                           # {{{
+    s/á/\&aacute;/g;
+    s/é/\&eacute;/g;
+    s/í/\&iacute;/g;
+    s/ó/\&oacute;/g;
+    s/ú/\&uacute;/g;
+    s/Á/\&Aacute;/g;
+    s/É/\&Eacute;/g;
+    s/Í/\&Iacute;/g;
+    s/Ó/\&Oacute;/g;
+    s/Ú/\&Uacute;/g;
+
+    # }}}
+    # Umlaut                                           # {{{
+    s/ä/\&auml;/g;
+    s/ë/\&euml;/g;
+    s/ï/\&iuml;/g;
+    s/ö/\&ouml;/g;
+    s/ü/\&uuml;/g;
+    s/Ä/\&Auml;/g;
+    s/Ë/\&Euml;/g;
+    s/Ï/\&Iuml;/g;
+    s/Ö/\&Ouml;/g;
+    s/Ü/\&Uuml;/g;
+
+    # }}}
+    # Circumflex                                       # {{{
+    s/â/\&acirc;/g;
+    s/ê/\&ecirc;/g;
+    s/î/\&icirc;/g;
+    s/ô/\&ocirc;/g;
+    s/û/\&ucirc;/g;
+    s/Â/\&Acirc;/g;
+    s/Ê/\&Ecirc;/g;
+    s/Î/\&Icirc;/g;
+    s/Ô/\&Ocirc;/g;
+    s/Û/\&Ucirc;/g;
+
+    # }}}
+    # Tilde                                            # {{{
+    s/ã/\&atilde;/g;
+    s/õ/\&otilde;/g;
+    s/Ã/\&Atilde;/g;
+    s/Õ/\&Otilde;/g;
+
+    # }}}
+    # Spanish et al                                    # {{{
+    s/ñ/\&ntilde;/g;
+    s/Ñ/\&Ntilde;/g;
+    s/¿/\&iquest;/g;
+    s/¡/\&iexcl;/g;
+    s/ç/\&ccedil;/g;
+    s/Ç/\&Ccedil;/g;
+    s/€/\&euro;/g;
+    s/º/\&ordm;/g;
+    s/ª/\&ordf;/g;
+    s/’/'/g;
+
+    # }}}
+    # latin1
+    # Graves                                           # {{{
+    s/\xe0/\&agrave;/g;
+    s/\xe8/\&eacute;/g;
+    s/\xec/\&igrave;/g;
+    s/\xf2/\&ograve;/g;
+    s/\xf9/\&ugrave;/g;
+    s/\xc0/\&Agrave;/g;
+    s/\xc8/\&Eacute;/g;
+    s/\xcc/\&Igrave;/g;
+    s/\xd2/\&Ograve;/g;
+    s/\xd9/\&Ugrave;/g;
+
+    # }}}
+    # Acutes                                           # {{{
+    s/\xe1/\&aacute;/g;
+    s/\xe9/\&eacute;/g;
+    s/\xed/\&iacute;/g;
+    s/\xf3/\&oacute;/g;
+    s/\xfa/\&uacute;/g;
+    s/\xc1/\&Aacute;/g;
+    s/\xc9/\&Eacute;/g;
+    s/\xcd/\&Iacute;/g;
+    s/\xd3/\&Oacute;/g;
+    s/\xda/\&Uacute;/g;
+
+    # }}}
+    # Umlaut                                           # {{{
+    s/\xe4/\&auml;/g;
+    s/\xeb/\&euml;/g;
+    s/\xef/\&iuml;/g;
+    s/\xf6/\&ouml;/g;
+    s/\xfc/\&uuml;/g;
+    s/\xc4/\&Auml;/g;
+    s/\xcb/\&Euml;/g;
+    s/\xcf/\&Iuml;/g;
+    s/\xd6/\&Ouml;/g;
+    s/\xdc/\&Uuml;/g;
+
+    # }}}
+    # Circumflex                                       # {{{
+    s/\xe2/\&acirc;/g;
+    s/\xea/\&ecirc;/g;
+    s/\xee/\&icirc;/g;
+    s/\xf4/\&ocirc;/g;
+    s/\xfb/\&ucirc;/g;
+    s/\xc2/\&Acirc;/g;
+    s/\xca/\&Ecirc;/g;
+    s/\xce/\&Icirc;/g;
+    s/\xd4/\&Ocirc;/g;
+    s/\xdb/\&Ucirc;/g;
+
+    # }}}
+    # Tilde                                            # {{{
+    s/\xe3/\&atilde;/g;
+    s/\xf5/\&otilde;/g;
+    s/\xc3/\&Atilde;/g;
+    s/\xd5/\&Otilde;/g;
+
+    # }}}
+    # Spanish et al                                    # {{{
+    s/\xf1/\&ntilde;/g;
+    s/\xd1/\&Ntilde;/g;
+    s/\xbf/\&iquest;/g;
+    s/\xa1/\&iexcl;/g;
+    s/\xe7/\&ccedil;/g;
+    s/\xc7/\&Ccedil;/g;
+    s/\xbf/\&euro;/g;
+    # }}}
+}
+# }}}
+# {{{ Grabamos en la salida
+open FILE, $output;
+print FILE $_;
+close FILE;
+exit 0;
+# }}}

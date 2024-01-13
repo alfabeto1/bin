@@ -1,0 +1,152 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<rmwall> - Borra los graficos que no tengan proporción HD
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item rmwall [-h|--help|-u|-V|--version]
+
+=item rmwall [-v] [-d] [-r] F<FILE>...
+
+=back
+
+=head1 DESCRIPTION
+
+Borra los graficos que no tengan proporción HD.
+
+Los que no tienen una proporcion HD (1920x1080) o que, aun teniéndola,
+son de tamaño inferior, se marcan para borrar.
+
+Utiliza el comando B<identify> de imagemagick para obtener el tamaño de
+la imagen, por lo que es necesario tener instalado este paquete.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-d>
+
+Se hace el borrado efectivamente.
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-r>
+
+Recursiva.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2013 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+my $aspecto = 1920/1080;
+my $minsize = 1920*1080;
+
+# }}}
+# {{{ Variables
+my %opt;
+my @sel;
+
+# }}}
+# {{{ Parametros
+getopts('hruvVd',\%opt) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+if (@ARGV){
+    @sel = @ARGV;
+} else {
+    if ($opt{r}){
+        @sel = split /\n/, qx/find -type f/;
+    } else {
+        @sel = grep {-f} glob("*.*");
+    }
+}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+foreach my $f (@sel){
+    next unless $f=~ /\.(jpe?g|png|bmp)$/i;
+    my $text   = `identify '$f'`;
+    $text=~  / (\d+)x(\d+) / ;
+    my $w = $1;
+    my $h = $2;
+    if (!$w or !$h){
+        print "No valido $f\n";
+        next;
+    }
+    if ($w/$h == $aspecto and
+        $w*$h >= $minsize){
+        print "$f - ${w}x$h - OK\n" if $opt{v};
+    } else {
+        print "$f - ${w}x$h - Para borrar\n" unless $opt{d};
+        if ($opt{d}){
+            unlink $f and
+            print "Borrado $f\n";
+        }
+    }
+}
+exit 0;
+
+# }}}

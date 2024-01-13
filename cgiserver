@@ -1,0 +1,43 @@
+#!/bin/sh
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+B<cgiserver> - CGI Web server para pruebas
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<command>
+
+=back
+
+=head1 DESCRIPTION
+
+CGI Web server I<fast and dirty> para realizar pruebas y demos. Si se ejecuta
+desde un directorio que contenga un subdirectorio F<cgi-bin>, ejecuta los
+comndos que hay dentro. 
+
+Lo que esté fuera de este subdirectorio se trata como un web server normal.
+
+Funciona por el puerto 8000, por lo que que hay que navegar a la dirección
+F<http://localhost:8000> o F<http://localhost:8000/cgi-bin/comando>.
+
+Este servidor viene incluido con F<python>, sólo he añadido un poco de
+información.
+
+=head1 OPTIONS                             
+
+Sin opciones.
+
+=cut
+
+# }}}
+our $VERSION = substr q$Revision: 3.1 $, 10;
+python -m CGIHTTPServer

@@ -1,0 +1,32 @@
+#!/bin/bash
+### convertidor de pandoc a pdf
+temp1=/tmp/dopandoc-temp1.md
+temp2=/tmp/dopandoc-temp2.md
+input=$1
+output=${input//md/pdf}
+title=$1
+title=${title//_/ }
+title=${title%.md}
+title=${title##*/}
+prepandoc "$1" >$temp1
+
+
+extensions=$(head -n 10 $temp1|grep extensions:)
+if [[ "$extensions" ]]; then
+    extensions=$(echo $extensions|sed -e 's/extensions: *//')
+    extensions="+$extensions"
+fi
+pandoc --quiet -s -f markdown$extensions -t html5 $temp1 -o $temp2 
+cat $temp2|pandoc --quiet -s --pdf-engine=weasyprint -t pdf - -o $output 2>&1 |grep -v ^WARNING|grep -v '^    linear'
+# rm $temp1
+# rm $temp2
+exit
+    --pdf-engine=lualatex \
+    --pdf-engine=context \
+    --pdf-engine=xelatex \
+    --pdf-engine=pdflatex \
+    --pdf-engine=latexmk \
+    --pdf-engine=weasyprint \
+    
+
+

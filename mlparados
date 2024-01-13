@@ -1,0 +1,9 @@
+#!/bin/sh
+### Lista de ficheros en pasa en la lista de descarga de mldonkey
+# Luís M. Arocha Hernández
+if [ ! -d /pub/mldonkey ]; then
+    echo Fail. No mldonkey here.
+    exit 1
+fi
+mlbaja|egrep  -a '(Queued|Pause)'|grep -va '^$'
+echo -n '[1;39m'

@@ -1,0 +1,7 @@
+#!/bin/bash
+### Comprueba lo que se obtiene accediendo por http y https a mis direcciones
+for i in localhost 81.61.113.127 arocha.tk {promo.,}saul-trainer.{ml,tk}
+do
+    wget --no-check-certificate -v -v -v https://$i -t 1 -S -T 3 -O seguro.$i.index.html    
+    wget http://$i -t 1 -S -T 3 -O normal.$i.index.html
+done

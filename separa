@@ -1,0 +1,15 @@
+#!/bin/sh
+### Mueve los videos de series cada uno a su directorio
+detox /pub/incoming/*
+names /pub/incoming/*
+# mkdir -p $1 2>/dev/null
+for D in /pub/incoming/Aramita/* /pub/incoming/Series/* /pub/incoming/Documentales/*
+do
+    if [ -d $D ];then
+        R=$(echo $D|tr -- '-_' '..')
+        R=${R%/}
+        R=${R##*/}
+        mv -v $(find -maxdepth 1 -type f|grep -i ./$R) $D/ 2>/dev/null
+    fi
+done
+# Ver separador, todir

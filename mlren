@@ -1,0 +1,4 @@
+#!/bin/bash
+### Cambia de nombre un fichero de descarga de mldonkey
+# Luís M. Arocha Hernández
+ml rename $1 "$2"|grep -ia renamed

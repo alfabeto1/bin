@@ -1,0 +1,6 @@
+#!/usr/bin/bash
+### Pasa todo el wiki a html
+for i in `find -type f -name '*.md'`; do
+    echo $i
+    dopandoc $i
+done

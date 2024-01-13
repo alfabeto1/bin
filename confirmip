@@ -1,0 +1,15 @@
+#!/bin/bash
+### Comprueba que la ip publica sigue siendo la misma
+IP=81.61.118.168
+NEWIP=$(wget --timeout=2 -q -O - ifconfig.me)
+# NEWIP=$(wget --timeout=2 -q -O - checkip.dyndns.org|sed -e 's/.*: //;s/<.*//')
+# NEWIP=$(wget --timeout=2 -q -O - https://api.ipify.org)
+if [ "$IP" == "$NEWIP" ] ; then
+    echo All right.
+    echo IP keeps unchanged: $NEWIP
+else
+    echo There is a change in IP
+    echo OLD: $IP
+    echo NEW: $NEWIP
+    echo !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+fi

@@ -1,0 +1,8 @@
+#!/bin/sh
+### Cambio el ratio maximo de descarga del mldonkey
+# Luís M. Arocha Hernández
+if [ ! -d /pub/mldonkey ]; then
+    echo Fail. No mldonkey here.
+    exit 1
+fi
+ml set max_hard_download_rate $1

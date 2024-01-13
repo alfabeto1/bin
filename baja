@@ -1,0 +1,8 @@
+#!/bin/sh
+### Ver ficheros que se estan bajando en el mldonkey
+if [ ! -d /pub/mldonkey ]; then
+    echo Fail. No mldonkey here.
+    exit 1
+fi
+mlbaja |grep -va Paused|grep -va Queued|head -30
+echo -n '[2;37;0m'

@@ -1,0 +1,156 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<xls2csv> - Convierte un fichero excel a CSV
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<xls2csv> [-u|-h|--help|-V|--version]
+
+=item B<xls2csv> [F<FILE>]
+
+=back
+
+=head1 DESCRIPTION
+
+Convierte un fichero excel a CSV.
+
+=head1 ARGUMENTS
+
+El fichero de entrada debe ser una hoja de cálculo Excel.
+
+Se ha probado con la extensión F<.xls> (Excel 97), no con F<.xlsx>
+(Excel 2002).
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2014 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Pragmas y modulos
+use warnings;
+use strict;
+use Getopt::Std;
+use CommonFunc qw/:all/;
+use Encode qw/:all/;
+use Spreadsheet::ParseExcel;
+
+# }}}
+# {{{ Variables
+my $extract=0;
+my $filename;
+my $parser;
+my $workbook;
+my @sheets;
+my $worksheet;
+my $row_min;
+my $row_max;
+my $col_min;
+my $col_max;
+my %opt;
+
+# }}}
+# {{{ Parametros
+getopts( 'ahuvV', \%opt ) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+$filename = $ARGV[0] or usage("Es necesario un fichero de entrada");
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+$parser   = Spreadsheet::ParseExcel->new();
+$workbook = $parser->parse( $filename );
+if ( !defined $workbook ) {
+    die "Parsing error: ", $parser->error(), ".\n";
+}
+
+@sheets    = $workbook->worksheets();
+$#sheets   = 0 unless $opt{a};   # Tratar un o tratar todas.
+foreach $worksheet ( @sheets){
+    ( $row_min, $row_max ) = $worksheet->row_range();
+    ( $col_min, $col_max ) = $worksheet->col_range();
+    for my $row ( $row_min .. $row_max ) {
+        my @f;
+        my $n=0;
+        for my $col ( $col_min .. $col_max ) {
+            my $cell = $worksheet->get_cell( $row, $col );
+            if ($cell){
+                #$f[$n]=encode('utf8',$cell->value());
+                #$f[$n]=$cell->value();
+                $f[$n]=encode('latin1',$cell->value());
+            } else {
+                $f[$n]='';
+            }
+            $n++;
+        }
+        my $sw=0;
+        my $t = '';
+        foreach my $i (@f){
+            $t .= ";" if $sw;
+            $sw=1;
+            if (length($i)){
+                if ($i =~ /^[\+\-][\.\d]+$/){
+                    $t .=$i;
+                } else {
+                    $t .="\"$i\"";
+                }
+            }
+        }
+        $t =~ s/[;,]+$//;
+        print "$t\n";
+    }
+    print "\n";
+}
+
+# }}}

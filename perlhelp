@@ -1,0 +1,91 @@
+#!/usr/bin/perl -w
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<perlhelp> - Search word in perl help. To be included in vim.
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<perlhelp> [Topic]
+
+=back
+
+=head1 DESCRIPTION
+
+Search word in perl help. To be included in vim.
+
+Try some searchs before resign:
+
+    perldoc -f
+    perldoc
+    metapd
+    perldoc -q
+    man
+
+=head1 OPTIONS
+
+Sin opciones.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright (c) 2017 Luis M. Arocha Hernández <lah.data@gmail.com>.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{
+# Modules and pragmas
+use strict;
+use 5.010;
+use experimental 'smartmatch';
+# }}}
+# {{{
+# Variables
+my $SINGLE_PAGE = `tput lines`;
+my @CANDIDATES  = ( 'perldoc -f', 'perldoc', 'metapd', 'perldoc -q', 'man',);
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+for my $command (@CANDIDATES) {
+    given (qx{ $command @ARGV 2>/dev/null }) {
+        when (/.*: nothing appropriate$/) { page( "Nothing found for '@ARGV'");}
+        when (/\S/)                       { print "$command\n";page( $_ );exit;}
+    }
+}
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub page {
+    my ($text) = @_;
+
+    my $pager;
+    if (($text =~ tr/\n//) > $SINGLE_PAGE ) {
+        open $pager, '|/usr/bin/less';
+    } else {
+        $pager = \*STDOUT;
+    }
+    say {$pager} $text;
+}
+# }}}

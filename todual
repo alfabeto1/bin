@@ -1,0 +1,28 @@
+#!/bin/bash
+### Convertir imagen pequeña a imagen simétrica para poner en pantalla dual
+# Verificar parámetro
+if [ $# -eq 0 ]; then
+    echo "Uso: $0 <archivo_de_imagen>"
+    exit 1
+fi
+input_file="$1"
+output_file="/tmp/imagen.jpg"
+temp_file="/tmp/temp-imagen.jpg"
+
+# Comprobar si la imagen tiene un ancho superior o igual a 1920 pixels
+image_height=$(identify -format "%h" "$input_file")
+
+if [ "$image_height" -gt 1080 ]; then
+    convert "$input_file" -scale x1080 "$temp_file"
+else
+    cp "$input_file" "$temp_file"
+fi
+image_width=$(identify -format "%w" "$temp_file")
+if [ "$image_width" -gt 1920 ]; then
+    # hacer una copia simple
+    cp "$temp_file" "$output_file"
+else
+    # crear una imagen simétrica
+    convert "$temp_file" -background green -gravity east -extent 1920x \( +clone -flop \) +append "$output_file"
+fi
+rm $temp_file

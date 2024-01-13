@@ -1,0 +1,436 @@
+#!/bin/bash
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# OJO. ANTES DE BORRAR NADA.                                               !
+# Hacer lista de paquetes                                                  !
+# ejecutar PCINFO                                                          !
+# Hacer copia de /var/www, /root, /etc, /home                              !
+#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#==============================================================================+
+# POD                                                                          |
+#==============================================================================+
+# {{{
+NUL=<<=cut
+
+=encoding utf-8
+
+=head1 NAME
+
+reinstalacion - Notas y comandos para reinstalar mi linux.
+
+=head1 DESCRIPTION
+
+=head2 Ficheros de configuracion a copiar/retocar
+
+=over 4
+
+=item - Copiar ~/bin ~/lib y ~/etc
+
+=item - Ejecutar ~/bin/creaentorno
+
+=item - Copiar ~/.renrot/
+
+=item - Copiar .freeciv-gtk.....
+
+
+=item - Tomar datos de /etc/fstab # Lo primero. Cambiar y ejecuar como root 'mount -a'
+
+=item - Copiar entorno a /root
+
+=item - Recuperar /etc/minidlna.conf
+
+=item - Recuperar /etc/crontab
+
+=item - Configuracion Firefox y chromium. download them all,
+gestor de descargas.
+
+=item - Usuario personal: crontab -f ~/etc/crontab.tahiti.luis
+
+=item - ln -s etc/muttrc .muttrc
+
+=item - .forward para root no debe ser link
+
+=back
+
+=head2 Samba
+
+=over 4
+
+=item - /etc/samba/smb.conf
+
+=item - Crear usuarios samba. # smbpasswd -a [usuario]
+
+=back
+
+=head2
+
+=over 4
+
+=item apto in grub-splashimages
+
+=item cp /boot/grub/splashimages/selected_image.xpm.gz /boot/grub/splash.xpm.gz
+
+=item gunzip splash.xpm.gz
+
+=item update-grub
+
+=back
+
+=head2 Fonts
+
+Copiar $HOME/fonts
+
+=head2 Redes
+
+    |=IP                       |=Maquina            |
+    |192.168.1.1               |Router, gateway, dns|
+    |192.168.1.2               |Server              |
+    |192.168.1.3               |TV Salon            |
+    |192.168.1.4               |Play Station 3      |
+    |192.168.1.9               |Netgear dg83Gv3 as access point |
+    |192.168.1.10 a 254        |Por DHCP            |
+    |255.255.255.0             |Netmask             |
+    |1.1.1.1                   |DNS Alternative Faster private |
+    |212.145.4.97, 212.145.4.98|DNS Vodafone        |
+    |62.42.230.24, 62.42.63.52 |DNS ONO             |
+    |8.8.8.4, 8.8.8.8          |DNS Google!!        |
+
+
+=head2 MlDonkey
+
+=over 4
+
+=item - Añadir grupo mldonkey al usurio data. sudo adduser data mldonkey
+
+=item - Copiar /etc/init.d/mldonkey-server y /etc/init.d/mldonkey-server.
+
+=item - Activar solo edonkey y bittorrent
+
+=item - Asignar magnet como programa para gestionar magnet en firefox.
+
+=item - Asignar magnet como programa para gestionar direcciones ed2k: en firefox.
+
+=item - downloads.ini podria ser necesario cambiar el setuid
+
+=item - passwd podria ser necesario cambiar directorio de trabajo a /pub/mldonkey
+
+=back
+
+=head2 Cambiar la imagen de la 'lock screen'
+
+Cambiar /usr/share/backgrounds/linuxmint/default_background.jpg. Es un enlace
+a una imagen.
+
+=head2 Cambio de nombre
+
+=over 4
+
+=item - Si hay cambio de nombre hay que cambiar varios comandos que lo contienen.
+
+=item - También crear un en etc el fichero local.HOSTNAME
+
+=back
+
+=head2 Correo
+
+=over 4
+
+=item * Copiar /etc/postfix/
+
+=item * Ejecutar C<postmap /etc/postfix/sasl_passwd>
+
+=item * Crear .forward (data + root) y .muttrc
+
+=item * /etc/aliases. ejecutar newaliases
+
+=back
+
+=head2 Cambio de nombre
+
+Ojo. si hay cambio de disco puede ser necesario hacer cambios en la bios para
+que el ordenador arranque desde el disco nuevo.
+
+=head2 
+
+IP: 192.168.0.11
+
+DNS: 212.166.210.84, 212.166.132.104
+
+=cut
+
+# }}}
+#==============================================================================#
+# VARIABLES                                                                    #
+#==============================================================================#
+SEP=".........................."
+OUTPUT="~/reinstalacion-error.log"
+#==============================================================================#
+# Functions                                                                    #
+#==============================================================================#
+# {{{
+function confirmg(){
+    read -p "Execute group $*: " yn
+       case $yn in
+           [YySs]* ) echo 1 ;;
+           "" ) echo 1 ;;
+           * ) echo 0;;
+       esac
+}
+# }}}
+# {{{
+function confirm(){
+    c="$*"
+    read -p "Confirm $c: " yn
+       case $yn in
+           [Yys]* ) echo ejecutando; 
+                $c
+                if test $? -gt 0 ; then
+                   echo FAILED $c >> $OUTPUT
+                fi
+               ;;
+           "" ) echo ejecutando; $c;;
+           [Nn]* ) echo bypass;;
+           [Qq]* ) echo Cancelando;exit;;
+       esac
+}
+# }}}
+# {{{
+function installer(){
+    echo $SEP
+    c="apt-get -y install $*"
+    confirm $c
+    # read -p "Confirm $c: " yn
+    #    case $yn in
+    #        [Yys]* ) echo ejecutando;
+    #             $c
+    #             if test $? -gt 0 ; then
+    #                echo FAILED $c >> $OUTPUT
+    #             fi
+    #            ;;
+    #        "" ) echo ejecutando; $c;;
+    #        [Nn]* ) echo bypass;;
+    #        [Qq]* ) echo Cancelando;exit;;
+    #    esac
+}
+# }}}
+# {{{
+function uninstaller(){
+    c="apt-get -y purge $*"
+    confirm $c
+    # read -p "Confirm $c: " yn
+    #    case $yn in
+    #        [Yys]* ) echo ejecutando;
+    #             $c
+    #             if test $? -gt 0 ; then
+    #                echo FAILED $c >> $OUTPUT
+    #             fi
+    #            ;;
+    #        "" ) echo ejecutando; $c;;
+    #        [Nn]* ) echo bypass;;
+    #        [Qq]* ) echo Cancelando;exit;;
+    #    esac
+}
+# }}}
+#==============================================================================#
+# Paquetes a instalar                                                          #
+#==============================================================================#
+# Repositorios -----------------------------------------------------------------
+# add-apt-repository ppa:xorg-edgers/ppa # drivers mas actualizados
+# add-apt-repository ppa:peterlevi/ppa
+# add-apt-repository ppa:wfg/0ad
+# add-apt-repository ppa:bashtop-monitor/bashtop
+
+echo Actualizar --------------------------------------------------------------
+confirm apt-get update
+confirm apt-get dist-upgrade
+
+echo Editores ----------------------------------------------------------------
+installer vim gedit geany figlet tidy
+
+echo Internet ----------------------------------------------------------------
+installer firefox apache2 letsencrypt apache2-doc libapache2-mod-php
+installer libapache2-mod-wsgi-py3 libapache2-mpm-itk
+installer python3-certbot-apache lynx w3m links
+
+echo Brave-browser -----------------------------------------------------------
+echo More details in https://brave.com/linux
+result=$(confirmg)
+if [ $result -eq 1 ]; then
+    curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg arch=amd64] https://brave-browser-apt-release.s3.brave.com/ stable main"|sudo tee /etc/apt/sources.list.d/brave-browser-release.list
+    apt update
+    apt install brave-browser
+fi
+
+echo Archiving ---------------------------------------------------------------
+installer arj cabextract cvs file-roller kgb rsync lhasa lrzip lzip lzma lzop
+installer mpack p7zip-full p7zip-rar pv rar rzip sharutils unace unrar unzip
+installer uudeview xz-utils zip zpaq rpm rpm2cpio 7zip
+
+echo Admin -------------------------------------------------------------------
+installer bwm-ng traceroute unison smartmontools ssh gparted chkrootkit ncftp 
+installer netcat tree wget curl discover ntp inxi deborphan samba-common-bin
+installer samba dselect debsums postfix smbclient mutt elinks lynx mailutils
+installer exfat-fuse hfsplus hfsutils ntfs-3g expect mariadb-server mycli groff
+installer grepcidr at
+uninstaller ufw
+
+echo Devel --------------------------------------------------------------------
+installer perl-doc perltidy libhtml-template-perl
+installer libdbi-perl libdbd-mysql-perl libdate-calc-perl
+# installer libcrypt-ssleay-perl # necesario para pricesv2
+# installer libterm-readkey-perl libfile-tee-perl # necesario para bot de trading
+installer python3-venv python3-pip python3-pytest python3-pymysql
+installer git
+
+echo P2P ---------------------------------------------------------------------
+uninstaller transmission-gtk transmission-common
+
+echo DLNA --------------------------------------------------------------------
+installer minidlna
+
+echo Imagenes ----------------------------------------------------------------
+installer gimp gimp-data-extras gimp-help-common gimp-help-en
+installer gimp-help-es gnome-backgrounds imagemagick imagemagick-doc
+installer jpeginfo eom perlmagick renrot variety
+installer graphviz sysvbanner gimp-gmic gmic gimp-plugin-registry
+installer jhead feh sxiv findimagedupes renrot
+
+echo Games -------------------------------------------------------------------
+installer gnome-cards-data freeciv-client-gtk3 freeciv-server 
+installer gnome-games cpulimit 0ad freeorion
+
+echo Fonts -------------------------------------------------------------------
+installer fonts-powerline ttf-ancient-fonts ttf-xfree86-nonfree
+installer fonts-inconsolata fonts-liberation ttf-mscorefonts-installer
+
+echo Desktop -----------------------------------------------------------------
+installer gdebi openjdk-8-jre nitrogen inkscape bluefish kazam
+installer language-pack-gnome-es language-pack-kde-es
+installer mate-desktop mate-common most libdecoration0-dev nautilus
+installer brother-cups-wrapper-laser unity-tweak-tool zathura
+uninstaller remmina
+
+echo Google Earth ------------------------------------------------------------
+confirm dpkg -i /home/luis/Archive/google-earth*
+
+echo Audio -------------------------------------------------------------------
+installer cutmp3 clementine moc mp3rename mplayer mencoder id3v2 
+installer easytag id3tool mpg321 mpg123 lame mpeg3-utils sox mp3wrap
+
+echo Video -------------------------------------------------------------------
+installer faac faad ffmpeg ffmpeg2theora ffmpeg-doc flac gstreamer1.0-tools
+installer liba52-0.7.4-dev libavcodec-extra58 libdvdcss2 libflac++6v5
+installer libmad0 libmpeg2-4 libquicktime2 libxine2-ffmpeg
+installer mediainfo mkvtoolnix mpeg2dec nautilus-script-audio-convert smplayer
+installer nautilus-scripts-manager smplayer-l10n smplayer-themes totem
+installer totem-plugins grilo-plugins-0.3-extra vlc vorbis-tools
+
+echo Books -------------------------------------------------------------------
+installer calibre okular catdoc antiword evince fbreader pandoc
+
+echo Dropbox -----------------------------------------------------------------
+installer caja-dropbox nemo-dropbox
+
+echo Gnome -------------------------------------------------------------------
+installer gnome-shell-extensions # para instalar temas
+installer gnome-system-tools gconf2
+installer gnome-themes-ubuntu gnome-video-effects language-pack-es
+
+echo Reconfigure screensaver -------------------------------------------------
+installer xscreensaver xscreensaver-gl xscreensaver-data 
+installer xscreensaver-gl-extra xscreensaver-data-extra xfishtank xdaliclock  fortune
+confirm gsettings set org.cinnamon.desktop.session idle-delay 0 && gsettings set org.cinnamon.desktop.screensaver idle-activation-enabled false && gsettings set org.cinnamon.desktop.screensaver lock-enabled false
+confirm ln -sf /usr/bin/xscreensaver-command /usr/bin/cinnamon-screensaver-command
+
+echo Others ------------------------------------------------------------------
+installer gnuplot feedgnuplot # Cripto
+installer detox
+installer libdvd-pkg
+confirm dpkg-reconfigure libdvd-pkg # configurador
+confirm crontab -u luis /home/luis/etc/crontab.bali.luis
+
+echo Ajustes gnome -----------------------------------------------------------
+result=$(confirmg)
+if [ $result -eq 1 ]; then
+    gsettings set org.gnome.shell.extensions.dash-to-dock extend-height false
+    gsettings set org.gnome.shell.extensions.dash-to-dock dock-position BOTTOM
+    gsettings set org.gnome.shell.extensions.dash-to-dock transparency-mode FIXED
+    gsettings set org.gnome.shell.extensions.dash-to-dock dash-max-icon-size 64
+    gsettings set org.gnome.shell.extensions.dash-to-dock unity-backlit-items true
+fi
+echo GRUB: Set Imperial Death March as startup tune -------------------------
+result=$(confirmg)
+if [ $result -eq 1 ]; then
+    echo "GRUB_INIT_TUNE=\"480 440 4 440 4 440 4 349 3 523 1 440 4 349 3 523 1 440 8 659 4 659 4 659 4 698 3 523 1 415 4 349 3 523 1 440 8\"" \
+        | sudo cat  >>/etc/default/grub
+    update-grub
+fi
+echo Ed2k config handler -----------------------------------------------------
+result=$(confirmg)
+if [ $result -eq 1 ]; then
+    gconftool-2 -s /desktop/gnome/url-handlers/ed2k/command '/home/luis/bin/magnet %s' --type String
+    gconftool-2 -s /desktop/gnome/url-handlers/ed2k/enabled --type Boolean true
+fi
+
+echo minidlna ----------------------------------------------------------------
+result=$(confirmg)
+if [ $result -eq 1 ]; then
+    cp -bv /home/luis/Archive/backup/minidlna.conf /etc
+    /etc/init.d/minidlna restart
+fi
+
+echo cortafuegos -------------------------------------------------------------
+result=$(confirmg)
+if [ $result -eq 1 ]; then
+    cp -bv /home/luis/bin/cortafuegos /etc/init.d/
+    update-rc.d cortafuegos defaults
+    /etc/init.d/cortafuegos start
+fi
+
+echo Mldonkey -----------------------------------------------
+confirm dpkg -i /home/luis/Archive/mldonkey*.deb
+confirm cp -bv /home/luis/Archive/backup/default/mldonkey-server /etc/default
+result=$(confirmg)
+if [ $result -eq 1 ]; then
+    /etc/init.d/mldonkey-server stop
+    uid=`grep mldonkey /etc/passwd|sed -e 's/mldonkey:x://;s/:.*//' `
+    sed -i.bak -e 's/run_as_useruid = .*/run_as_useruid = '$uid'/' /pub/mldonkey/downloads.ini
+    rm /pub/mldonkey/mlnet.log
+    chown mldonkey:mldonkey -R /pub/mldonkey /var/log/mldonkey
+    /etc/init.d/mldonkey-server restart
+fi
+
+
+echo Postfix -------------------------------------------------------------------
+result=$(confirmg)
+if [ $result -eq 1 ]; then
+    cp -b /home/luis/Archive/backup/postfix/sasl/sasl_passwd /etc/postfix/sasl/
+    newaliases
+    postmap /etc/postfix/sasl/sasl_passwd
+fi
+
+echo Samba ------------------------------------------------------------------
+result=$(confirmg)
+if [ $result -eq 1 ]; then
+    useradd geny
+    useradd saul
+    useradd hector
+    echo Password for luis
+    smbpasswd -a luis
+    echo Password for geny
+    smbpasswd -a geny
+    echo Password for saul
+    smbpasswd -a saul
+    echo Password for hector
+    smbpasswd -a hector
+    /etc/init.d/smbd restart
+fi
+echo Grupos ------------------------------------------------------------------
+result=$(confirmg)
+if [ $result -eq 1 ]; then
+    addgroup luis minidlna
+    addgroup luis mldonkey
+    addgroup luis www-data
+fi
+
+

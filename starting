@@ -1,0 +1,56 @@
+#!/bin/sh
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+B<starting> - Procesos a ejecutar en cada arranque del usuario
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<starting>
+
+=back
+
+=head1 DESCRIPTION
+
+Procesos a ejecutar en cada arranque del usuario.
+
+Usamos atime (ultima vez que el fichero se accedió), en vez de mtime (ultima
+vez que el fichero se modificó.
+
+Borramos los ficheros de views (creados con mkview), los ficheros de persistent
+undo, los de backup, por viejos o por muy grandes.
+
+Ademas se ejeucta el comando C<onebyday> para mantener sólo un backup de cada
+día, y no varios. 
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright (c) 2017 Luis M. Arocha Hernández <lah.data@gmail.com>.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=cut
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+find ~/.vimundo             -atime +60 -type f -delete -name '*~'
+find ~/.vimundo -size +100k -atime +30 -type f -delete -name '*~'
+find ~/.vimundo             -atime +20 -type f -delete -name '%*'
+find ~/.vimundo             -atime  +2 -type f -delete -name '*='
+onebyday  ~/.vimundo

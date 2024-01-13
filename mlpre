@@ -1,0 +1,10 @@
+#!/bin/sh
+### Arranca un fichero de los que se estan descargando en mldonkey
+# Luís M. Arocha Hernández
+if [ ! -d /pub/mldonkey ]; then
+    echo Fail. No mldonkey here.
+    exit 1
+fi
+for i in $*; do
+    st `mlfile $i`
+done

@@ -1,0 +1,223 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+
+=encoding utf-8
+
+=head1 NAME
+
+B<webagents> - Informa de todos agentes
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item webagents [-h|--help|-u|--usage|-V|--version]
+
+=item webagents [-a|--all] [-v|--verbose] [-t|--test] F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Informa de los diferentes agentes que se han conectado.
+
+=head1 ARGUMENTS
+
+El fichero es opcional. Indica fichero de access.log alternativo a utilizar.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-a>, B<--all>
+
+Se incluyen los baneados.
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-t>, B<--test>
+
+No ejecuta. Solo muestra lo que se haría.
+
+=item B<-u>, B<--usage>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>, B<--verbose>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 EXIT STATUS
+
+Listar los posibles valores de salida del programa y las condiciones en que esos valores son
+devueltos.
+
+=head1 FILES
+
+Relación exaustiva de los ficheros utilizados por el programa, como ficheros de configuración,
+ficheros de arranque, o ficheros sobre los que el programa opera. Especificar nombre y ruta.
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2021 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a su autor original y
+de acuerdo con los términos de la licencia GPL. (GNU General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luis M. Arocha Hernández <lah.data@gmail.com>.
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use Getopt::Long qw/:config no_ignore_case bundling/;
+use CommonFunc qw/:all/;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 0.0 $, 10;
+
+# }}}
+# {{{ Variables
+my %opt;
+my $file    = '/var/log/apache2/access.log';
+my $queries = '/home/luis/etc/webintruders-queries.txt';
+my %agents = qw//;
+my %requests = qw//;
+my @offending;
+my $found;
+
+# }}}
+# {{{ Parametros
+Getopt::Long::Configure("bundling","no_ignore_case");
+GetOptions (
+            "a|all"        => \$opt{a},
+            "h|help"       => \$opt{h},
+            "r|response=s" => \$opt{r},
+            "t|test"       => \$opt{t},
+            "u|usage"      => \$opt{u},
+            "v|verbose"    => \$opt{v},
+            "V|version"    => \$opt{V},
+            ) or usage('Fallo parámetros');
+
+help()    if $opt{h};
+usage()   if $opt{u};
+version() if $opt{V};
+
+$file = shift || $file;
+$opt{r}=$opt{r}|| '404';
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Leer lineas query
+unless ($opt{v}){
+    open FILE, $queries or die $!;
+    while (<FILE>){
+        last if /# LAST/;
+        next if /^#/;
+        chomp;
+        s/\//\\\//g;
+        s/\./\\./g;
+        push @offending, $_;
+    }
+    close FILE;
+}
+# }}}
+# {{{
+# Procesar fichero access.log o similar
+open FILE, $file or die $!;
+while (<FILE>){
+    chomp;
+    $found=0;
+    s/\s+/ /go;
+
+    #  break each apache access_log record into nine variables
+    my ($vhost,             $clientAddress, $rfc1413,      $username,
+        $localTime,         $httpRequest,   $statusCode,
+        $bytesSentToClient, $referer,       $clientSoftware) =
+    /^(\S+) (\S+) (\S+) (\S+) \[(.+)\] \"(.+)\" (\S+) (\S+) \"(.*)\" \"(.*)\"/o;
+    unless ($opt{a}){
+        foreach my $off(@offending){
+            # print "Checking $httpRequest --> $off\n";
+            if ($httpRequest =~  /$off/i){
+                $found++;
+                last;
+            }
+        }
+        next if $found;
+    }
+    unless ($opt{v}){
+        $clientSoftware =~  s/.*(UCBrowser).*/$1/g;
+        $clientSoftware =~  s/.*\b(.*spider)\b.*/$1/i;
+        $clientSoftware =~  s/.*\b(.*zgrab)\b.*/$1/i;
+        $clientSoftware =~  s/.*CensysInspect.*/CensysInspect /;
+        $clientSoftware =~  s/\(cow\)//;
+        $clientSoftware =~  s/.*NetSystemsResearch.*/NetSystemsResearch/;
+        $clientSoftware =~  s/.*gdnplus.*/gdnplus/;
+        $clientSoftware =~  s/(curl).*/$1/i;
+        $clientSoftware =~  s/(Expanse),.*/$1/i;
+        $clientSoftware =~  s/.*(googlebot).*/$1/i;
+        $clientSoftware =~  s/.*(iphone).*/$1/i;
+        $clientSoftware =~  s/.*(android).*/$1/i;
+        $clientSoftware =~  s/.*(facebookexternalhit).*/$1/i;
+        $clientSoftware =~  s/User-Agent://;
+        $clientSoftware =~  s/AppleWebKit\S+ / /;
+        $clientSoftware =~  s/\(KHTML, like Gecko\)/ /g;
+        $clientSoftware =~  s/Mozilla\S+/ /g;
+        $clientSoftware =~  s/\([^\)]*Macintosh[^\)]*\)/Mac /g;
+        $clientSoftware =~  s/\([^\)]*Windows[^\)]*\)/Windows /g;
+        $clientSoftware =~  s/.*(MSIE \d.\d).*/Windows $1/g;
+        $clientSoftware =~  s/\(X11[^\)]+\)/Linux /g;
+        $clientSoftware =~  s/\/[\d\.]+/ /g;
+        $clientSoftware =~  s/ Version / /g;
+        $clientSoftware =~  s/.*\b(.*bot)\b.*/$1/i;
+        $clientSoftware =~  s/\)/ /g;
+        $clientSoftware =~  s/\(/ /g;
+        $clientSoftware =~  s/\\\"/ /g;
+        $clientSoftware =~  s/\s\s+/ /g;
+        $clientSoftware =~  s/^ //;
+        $clientSoftware =~  s/ $//;
+        $clientSoftware =~  s/Chrome Windows/Windows Chrome/;
+    }
+    $agents{"$vhost: $clientSoftware"}++;
+    $requests{"$vhost: $clientSoftware"}.=$httpRequest."\n";
+}
+close FILE;
+# }}}
+# {{{
+# Show data
+foreach my $a(sort keys %agents){
+    print "$a : $agents{$a}\n";
+    print "$requests{$a}\n" if $opt{v};
+}
+# }}}
+exit 0;

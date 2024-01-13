@@ -1,0 +1,182 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<tarsplit> - Crear fichero tar comprimido dividido con split
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item tarsplit [-h|--help|-u|-V|--version]
+
+=item tarsplit -o F<ORIG> [-d F<DEST>] [-s SIZE] [-j|-z] [-v] [-w] [-r] [-t]
+
+=back
+
+=head1 DESCRIPTION
+
+Se compacta el directorio o fichero de origen, con las tipo de compresor que
+se indique. El resultado se divide con el comando C<split>, creando ficheros
+F<xxx.000>, F<xxx.001>, F<xxx.002>... Tantos como sea necesario.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-d> DEST
+
+Directorio donde se deben dejar los ficheros.
+
+=item B<-h>
+
+Muestra la información de ayuda.
+
+=item B<-j>
+
+Comprimir con bzip2 (extension tbz).
+
+=item B<-t>
+
+Test mode. NO ejecuta. Solo muestra lo que se haría.
+
+=item B<-o> ORIG
+
+Fichero o directorio de origen para la copia.
+
+=item B<-r>
+
+Borrar ficheros de origen.
+
+=item B<-s> SIZE (integer)
+
+Tamaño ficheros destino (Por defecto 1Gb (1024^3))
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución de split.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=item B<-w>
+
+Muestra información detallada durante la ejecución de tar.
+
+=item B<-z>
+
+Comprimir con gzip (extension tgz)
+
+=back
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my $cmd;                      # Command to execute
+my $ext      = 'tar';         # Extension to add to filename. Depends on tar options
+my $file;                     # Filename to generate (extenson added later)
+my $result;                   # Return code of the executed command
+my $size     = '1024m';       # Size for every segment
+my $splitopt;                 # Options for split command
+my $taropt   = '-c -h -p';    # Options for tar command
+my %opt;                      # Options for this script
+
+# }}}
+# {{{ Parametros
+getopts('d:hjo:rs:tuvVwz',\%opt) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+usage()   unless $opt{o};
+usage('Error: -z y -j son excluyentes') if ( $opt{z} && $opt{j} );
+$size     = $opt{s} if $opt{s};
+$splitopt = "-d -a3 -b $size";
+$opt{d}   = $opt{d} || '.';
+if ($opt{r}) {
+    print "Info: Se borrara $opt{o} despues de la copia\n";
+}
+if ($opt{z}) {
+    $taropt .= ' -z';
+    $ext     = 'tgz';
+}
+if ($opt{j}) {
+    $taropt .= ' -j';
+    $ext     = 'tbz';
+}
+$file        = $opt{o};
+$file        =~ s/^\///;
+$file        =~ s/\//_/g;
+$opt{o}      =~ s/ \/$//;
+$splitopt   .= ' --verbose' if ($opt{v});
+$taropt     .= ' -v'        if ($opt{w});
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Procesamos
+$cmd  = "tar $taropt \"$opt{o}\"|split $splitopt - \"$opt{d}/$file.$ext.\"";
+print "$cmd\n";
+print "-" x length($cmd) . "\n";
+exit 0 if $opt{t};
+$result = system $cmd;
+# }}}
+# {{{
+if ($result) {
+    warn "Ejecución incorrecta\n";
+    if ($opt{r}) {
+        warn "No se borra el origen\n";
+    }
+    exit $result;
+}
+# }}}
+# {{{
+if ($opt{r}) {
+    print "\n";
+    print "Confirma el borrado de $opt{o} (ENTER) o cancela (Ctrl-C)\n";
+    <>;
+    $cmd = "yes|rm -rf \"$opt{o}\"";
+    print "$cmd\n";
+    print "-" x length($cmd) . "\n";
+    system $cmd;
+}
+exit;
+# }}}

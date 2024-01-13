@@ -1,0 +1,9 @@
+#!/bin/sh
+### Generar fichero de estadísticas.
+# mysar dias lapso_en_segundos
+DIAS=${1:-10}   
+LAPSO=${2:-900}  # En Segundos
+LECTDIA=$(expr 86400 / $LAPSO)
+LECTTOTAL=$(expr $DIAS '*' $LECTDIA)
+echo "Generando fichero para $LECTDIA lecturas por dia (cada $LAPSO segundos), durante $DIAS dias"
+nohup sar -d -u ALL -r -o sar.output -n DEV $LAPSO $LECTTOTAL &

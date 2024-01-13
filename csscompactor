@@ -1,0 +1,222 @@
+#!/usr/bin/python
+#==============================================================================#
+# POD inside docstring. awkward                                                #
+#==============================================================================#
+# {{{
+"""
+=head1 NAME
+
+B<csscompactor> - CSS filesize reducer
+
+=head1 DESCRIPTION
+
+CSS filesize reducer. Strips spaces and newlines.
+
+This script takes a css file and compacts it. It won't compress it. It will
+reduce file size by removing blanks and unnecessary whitespace. The script will
+cause the css file to be almost unreadble for human eyes but it will still be
+understandable for computers.
+
+=head1 COPYRIGHT & LICENSE
+
+    Author: Guy Rutenberg
+    License: GPLv2
+    Version: 0.4
+
+=cut
+
+"""
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{
+# Imports
+import sys
+import os
+from optparse import OptionParser
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+def main():
+    #parse the comandline
+    usage = "usage: %prog [options] FILENAME" # the usage string for OptionParser
+    version="%prog 0.4"
+    parser = OptionParser(usage=usage, version=version, description="A script that reduce css files and restores them to readable form")
+    parser.add_option("-c", "--compact",
+        type="int", dest="compact", default=1, metavar="N",
+        help="tells the script how much it should try to reduce the filesize. 1 - removes all whitespaces, newlines and comments. 2 - removes only comments [default=%default] ")
+    parser.add_option("-u", "--uncompact",
+        action="store_true", default=False, dest="uncompact",
+        help="restores the css file to a human readable text.")
+    parser.add_option("-o", "--ouput",
+        type="string", dest="output", metavar="FILE",
+        help="tells the script to which file it should write the output. [default: the input filename]")
+    parser.add_option("-l", "--filelist", action="store_true", default=False, dest="filelist",
+        help="Consider FILENAME to be a list of files to compact. Filenames should be seperated by newlines, lines that start with # are ignored")
+    parser.add_option("-s", "--strip", type="int", dest="strip", default=0, metavar="N",
+        help="When reading from a file list, strip N chars from the file name when writing thw output.")
+    (options, args) = parser.parse_args()
+    if len(args)<1:
+        parser.error("You must supply an input filename")
+    if len(args)>1:
+        print "Ignoring arguments: ", ", ".join(["%s" % (arg,) for arg in args[1:]])
+
+    if options.filelist: #handle file lists
+        try:
+            f = open(args[0], 'r')
+        except IOError:
+            print "Couldn't open file list", args[0]
+            sys.exit(1)
+        for line in f.readlines():
+            line=line.strip()
+            if line[0]=='#': #skip lines if needed
+                continue
+            try:
+                file = open (line, 'r')
+            except IOError, (errno, strerror):
+                print "Couldn't open file ", line, (errno, strerror)
+                continue
+            content = file.read()
+            file.close()
+            if options.uncompact:
+                content = uncompact(content)
+            else:
+                content = compact(compact(content, options.compact),options.compact)
+            print "PRUEBA", content
+        f.close()
+    else:
+        if options.output==None:
+            options.output=args[0];
+        try:
+            file = open (args[0], 'r')
+        except IOError, (errno, strerror):
+            print "Couldn't open file ", args[0], (errno, strerror)
+            sys.exit(1)
+        content = file.read()
+        file.close()
+        if options.uncompact:
+            content = uncompact(content)
+        else:
+            content = compact(compact(content, options.compact),options.compact)
+        print content
+# }}}
+# {{{
+def compact(content, level=1):
+    """
+    This is the main function responsible for cutting down the file size.
+    @type content: string
+    @param content: holds the string that should be compacted.
+    @type level: int
+    @param level: tells the function how to strip the file.
+    @rtype: string
+    @return: the compacted string."""
+
+    newcontent='' # holds the compacted string
+    temp=''
+    iscomment=False
+
+    # {{{
+    #remove all whithspaces and  comments.
+    if level==1 or level==2:
+        # {{{
+        for char in content:
+            #begin remove comments section
+            if char=='*' and iscomment:
+                temp='*'
+                continue
+            if temp=='*':   #first you need to check for ending a comment;
+                if char == '/': #should only be here if in comment any way so no need to check again
+                    iscomment=False
+                    temp=''
+                    continue
+                else: #no writing to the output since we should be in comment
+                    temp=''
+            if char=='*' and iscomment:
+                temp='*'
+                continue
+            if iscomment:
+                continue
+            if char=='/':
+                temp='/'
+                continue #return to the beginning of the loop
+            if temp=='/':
+                if char=='*':
+                    iscomment=True
+                    temp=''
+                    continue
+                else:
+                    newcontent += temp
+                    temp=''
+            #end remove comments section
+
+        # }}}
+    # }}}
+    # {{{
+    #handle spaces
+    if level == 1:
+        if temp in (';', ':', ',', '{', '}'):
+            if char == ' ':
+                continue #move on to the next char
+            else:
+                temp='' #reset temp and continue processing the char
+
+        if char in (';', ':', ',', '{', '}'):
+            temp = char;#continue processing the char
+
+        if char == ' ': #handle special cases where we should check after the space
+            temp=' '
+            continue
+        if temp==' ':
+            if char in ('}', '{', ';', ':'): # we should also find a way to check when we could delete a space before a dot
+                temp=''
+                continue
+            else:
+                newcontent+=temp
+                temp=''
+    #end space handling
+
+    # }}}
+    # {{{
+    if (char not in ('\n', '\r', '\t')) or level==2:
+        newcontent += char
+
+    # }}}
+    return newcontent
+# }}}
+# {{{
+def uncompact(content):
+    """
+    This is the main function responsible for restoring the file to a human
+    readble state
+    @type content: string
+    @param content: holds the string that should be uncompacted.
+
+    @rtype: string
+    @return: the compacted string."""
+    newcontent=''
+    indent = False
+
+    for char in content:
+        if indent and (newcontent[-1]=='\n'):
+            newcontent += '\t'
+        newcontent += char
+        if char==';':
+            newcontent+='\n'
+        if char=='{':
+            newcontent+='\n'
+            indent = True
+        if char=='}':
+            newcontent = newcontent[0:-2]+'}\n'
+            indent = False
+        if char in (':',','):
+            newcontent += ' '
+    return newcontent
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+if __name__=="__main__":
+    main()

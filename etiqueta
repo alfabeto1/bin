@@ -1,0 +1,67 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<etiqueta> - Pone una marca de agua con el nombre de fichero en un gráfico.
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<etiqueta> F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Pone una marca de agua con el nombre de fichero en un gráfico.
+
+=head1 ARGUMENTS
+
+Solo se procesa un argumento: el nombre del fichero a procesar.
+
+=head1 DEPENDS
+
+It uses C<mogrify> command from B<ImageMagick>.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+$file    = shift or die "Se necesita un fichero a procesar\n";
+-f $file or die "El fichero no existe\n";
+$tag     = lc($file);
+$tag     =~ s/\.(jpg|gif|png)$//i or die "El fichero debe ser jpg/gif/png\n";
+$tag     =~ s/.*\///;
+$tag     =~ s/-.*//;
+$tag     =~ s/\d//g;
+$tag     =~ s/_/ /g;
+$tag     =~ s/ +$//;
+$cmd     = "mogrify $options '$tag' $file";
+$options = "-fill white -undercolor '#00000080' -pointsize 20 -gravity NorthEast -annotate +10+10";
+print "$cmd\n";
+system "$cmd";
+exit $?;

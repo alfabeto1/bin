@@ -1,0 +1,11 @@
+#!/usr/bin/bash
+### reparte nuevos ficheros a los servidores de oracle
+# Hay que ejecutarlo desde HOME y poner el path completo
+# ej: repartir etc/codebits.txt
+SERVERS="frodo saruman"
+for i in $*; do 
+    for j in $SERVERS; do 
+        scp -p $i ubuntu@$j:$i
+    done
+done
+

@@ -1,0 +1,3 @@
+#!/bin/bash
+### Creacion rapida de un png a partir de un dot
+dot -Tpng -o${1/dot/png} $1

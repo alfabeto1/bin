@@ -1,0 +1,215 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+
+=encoding utf-8
+
+=head1 NAME
+
+B<mdindex> - Crea indice de ficheros markdown
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item mdindex [-h|--help|-u|--usage|-V|--version]
+
+=item mdindex [-v|--verbose] [-t|--test] F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Crea indice de ficheros markdown
+
+=head1 ARGUMENTS
+
+A qué corresponde cada argumento posicional. Valores por defecto.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-t>, B<--test>
+
+No ejecuta. Solo muestra lo que se haría.
+
+=item B<-u>, B<--usage>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>, B<--verbose>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+
+=head1 EXIT STATUS
+
+Listar los posibles valores de salida del programa y las condiciones en que esos
+valores son devueltos.
+
+=head1 FILES
+
+Relación exaustiva de los ficheros utilizados por el programa, como ficheros de
+configuración, ficheros de arranque, o ficheros sobre los que el programa opera.
+Especificar nombre y ruta.
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al
+autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2018 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luis M. Arocha Hernández <lah.data@gmail.com>.
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use 5.10.0;
+use strict;
+use Getopt::Long qw/:config no_ignore_case bundling/;
+use CommonFunc qw/:all/;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 0.0 $, 10;
+
+# }}}
+# {{{ Variables
+my %opt;
+my @files;
+my @dirs;
+my $filelen=0;
+my $dirlen=0;
+my $indexname;
+
+# }}}
+# {{{ Parametros
+Getopt::Long::Configure("bundling","no_ignore_case");
+GetOptions (
+            "h|help"     => \$opt{h},
+            "t|test"     => \$opt{t},
+            "u|usage"    => \$opt{u},
+            "v|verbose"  => \$opt{v},
+            "V|version"  => \$opt{V},
+            ) or usage('Fallo parámetros');
+
+help()    if $opt{h};
+usage()   if $opt{u};
+version() if $opt{V};
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Leemos directorio
+opendir my $dh, '.';
+while (my $thing = readdir $dh){
+    next if $thing eq '.';
+    next if $thing eq '..';
+    next if $thing =~  /workingdir/;
+    next if $thing =~  /Makefile/;
+    next if $thing =~  /wiki.md/;
+    my $len=length($thing);
+    if (-f $thing){
+        # next unless $thing =~  /\.(md|txt|sh|sql|css)$/;
+        push @files, $thing;
+        $filelen = $len if $len > $filelen;
+    } elsif (-d $thing) {
+        push @dirs, $thing;
+        $dirlen = $len if $len > $dirlen;
+        if ($opt{v}){
+            print "Procesando $thing\n"; 
+            system "cd $thing >/dev/null;mdindex -v";
+        } else {
+            system "cd $thing >/dev/null;mdindex ";
+        }
+    }
+}
+closedir $dh;
+# }}}
+# {{{
+# Generamos texto de index.md
+print "    Creando index.md\n" if $opt{v};
+$indexname = 'index';
+chomp $indexname;
+$indexname =~ s/.*\///;
+$indexname .= '.md';
+my $text='';
+my $fh;
+$text .= "---\n";
+$text .= "css: https://arocha.cf/css/index.css\n";
+$text .= "---\n";
+$text .= sprintf "* [%s](../)\n\n", 'UP';
+$text .= "# Directorios\n\n" if @dirs;
+foreach (sort {uc($a) cmp uc($b)} @dirs){
+    $text .= sprintf "* [%s](%s/index.html)\n", $_, $_;
+}
+$text .= "\n" if @files;
+$text .= "# Ficheros\n\n" if @files;
+$filelen-=3;
+foreach (sort {uc($a) cmp uc($b)} @files){
+    next if $_ =~  /Personal/;
+    next if $_ eq $indexname;
+    next if $_ =~ /html?$/i;
+    my $s=$_;
+    $s=~ s/\.(md|txt|gif|jpg|png)$//;
+    $s=~ s/_/ /g;
+    if (/(gif|jpg|png)$/){
+        $text .= sprintf "![%s](%s \"%s\")\n", $s, $_, $s;
+    } else {
+        $text .= sprintf "* [%s](%s)\n", $s, $_;
+    }
+}
+# }}}
+# {{{
+# Grabamos sólo si el texto ha cambiado
+open $fh, "$indexname" ;
+my $textold;
+{
+    undef $/;
+    $textold=<$fh>;
+}
+close $fh;
+if ($textold ne $text) {
+    print "    Grabamos\n" if $opt{v};
+    open $fh, ">$indexname" or die $!;
+    print $fh $text;
+    close $fh;
+} else {
+    print "    No Grabamos\n" if $opt{v};
+}
+# }}}
+exit 0;

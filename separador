@@ -1,0 +1,399 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<separador> - Separa ficheros en directorios según palabras clave
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item separador [-h|--help|-u|-V|--version]
+
+=item separador [-v] [-t] F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Separa ficheros en directorios según palabras clave. Se comprueban los nombres
+de los ficheros de imagenes del directorio actual buscando patrones para ubicar
+en subdirectorios.
+
+Los patrones y sus correspondientes subdirectorios se hayan al final de este
+script.
+
+Diseñado especificamente para separar imagenes de wallpapers por temáticas.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h> Muestra la información de ayuda completa.
+
+=item B<-t> Test mode. No ejecuta, solo muestra lo que se haría.
+
+=item B<-u> Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v> Muestra información detallada durante la ejecución.
+
+=item B<-V> Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 SEE ALSO
+
+B<todir>, B<separa>
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2015 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a su autor original y
+de acuerdo con los términos de la licencia GPL. (GNU General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+my $BASEDIR= '/pub1/Wallpapers/';
+
+# }}}
+# {{{ Variables
+my %opt;
+my %key;
+my @files;
+my $k = '';
+my $n = 0;
+my @orden;
+
+# }}}
+# {{{ Parametros
+getopts('htuvV',\%opt) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Carga patrones
+while (<DATA>){
+    chomp;
+    next if /^#/;
+    if (/^-- *(.*) */){
+        $k = $1;
+        system "mkdir '$BASEDIR$k'" unless (-d '$BASEDIR$k' or $opt{t});
+        next;
+    }
+    next unless /./;
+    foreach my $k1 (split /\s+/){
+        if (length($k1) <=5){
+            my $t     = '[_\-]'. $k1 . '[_\-\.]';
+            $key{$t}  = $k;
+            $t        = '^' . $k1 . '[_\-\.]';
+            $key{$t}  = $k;
+        } else {
+            $key{$k1} = $k;
+        }
+    }
+}
+@orden = reverse sort {length($a) <=> length($b)} keys %key;
+
+# }}}
+# {{{ Carga lista de ficheros
+print "Obteniendo lista de ficheros a procesar\n" if $opt{v};
+@files = glob("*.jpg");
+if (!@files){
+    print "No hay ficheros a procesar. Salimos\n";
+    exit 1;
+} else {
+    printf "Procesando %d ficheros.\n", ($#files+1) if $opt{v};
+}
+
+# }}}
+# {{{ Separa
+for my $f(@files){
+    for my $k(@orden){
+        if ($f =~ /$k/i){
+            if ($opt{t}){
+                printf "%-30s --> %s\n",$f, $key{$k};
+            } else {
+                system "mv -vn '$f' '$BASEDIR$key{$k}/' ";
+            }
+            $n++;
+            last;
+        }
+    }
+}
+
+# }}}
+# {{{ Fin
+printf "Distribuidos %d ficheros.\n",$n if $opt{v};
+exit 0;
+
+# }}}
+#==============================================================================#
+# DATA                                                                         #
+#==============================================================================#
+# {{{
+__DATA__
+--Animals
+animal              antelope            bear                bird
+birds               buffalo             butterfly           cat
+cheetah             congo               dog                 dolphin
+dragonfly           eagle               elephant            falcon
+fox                 frogs               giraffe             gorilla
+grizzly             guepardo            hedgehog            horse
+kenia               leon                leopard             libelula
+lion                mariposa            monkey              penguin
+pig                 polar.?bear         porcupine           rabbit
+sabana              squirrel            tiger               tigre
+vulture             wildlife            wolf                zebra
+
+--Underwater
+fish                octopus             seal                shark
+underwater          walrus              whale
+
+--Anime-Game
+anime               konachan            manga               naruto
+zelda
+
+--Cities
+amsterdam           barcelona           beijing             berlin
+bridge              brooklyn            buenos.?aires       cairo
+chicago             cities              city                dresden
+empire.?state       estambul            geneve              hamburg
+helsinki            hong.?kong          istanbul            lisboa
+london              los.?angeles        madrid              manhattan
+melbourne           monaco              monte.?carlo        montreal
+moscow              napoli              new.?york           oporto
+paris               petronas            praga               prague
+quebec              reykiavik           roma                rome
+san.?diego          san.?francisco      seattle             sevilla
+shanghai            sidney              skyline             stockholm
+strasbourg          tokyo               toronto             valencia
+vancouver           vatican             venice              vienn?a
+zurich              towns
+
+--Christmas
+christmas           natal               navidad
+
+--Countries
+argentina           australia           austria             belgium
+birmania            borneo              brasil              canada
+chile               china               colombia            croatia
+denmark             dubai               egypt               england
+finland             france              germany             great.?britain
+greece              guatemala           holland             hungary
+iceland             india               iran                iraq
+ireland             israel              italy               japan
+latvia              lebanon             lybia               machu.?picc?hu
+madagascar          madeira             malasya             mexico
+morocco             netherland          new.?zealand        norway
+okinawa             portugal            rumania             russia
+scotland            south.?africa       spain               sudan
+sweden              switzerland         taiwan              taj.?mahal
+tchad               thai                thailand            uganda
+united.?kingdom     usa                 venezuela           vietnam
+wales
+
+--Deportes
+beisball            boxing              fifa                football
+hockey              nba                 snowboard           surfing
+tennis              sport
+
+--Fantasy
+abstract            avatar              dragon              fantasy
+fractal             minecraft           pikachu             pokemon
+render              soul.calibur        splinter            starcraft
+unreal              warcraft            warhammer           warrior
+
+--Film-Music
+aaliyah             abba                acdc                alien
+anastacia           backstreet.boys     batman              beatles
+bob.marley          breaking.?bad       bruce.?lee          celine_dion
+charlot             depeche_mode        elvis.?presley      finding.nemo
+freddie.mercury     frozen              game.?of.?thrones   godzilla
+hannibal            ice.?age            iron.?man           iron.maiden
+janette.jackson     kylie_minogue       linkin_park         madonna
+matrix              metallica           michael.?jackson    michael_jackon
+movie               movies              mteallica           narnia
+nirvana             oblivion            pacific.?rim        predator
+resident.evil       riddick             robocop             sopranos
+star.?trek          star.?war           superman            terminator
+transformer         upa.dance           van.halen           walking.?dead
+whitney.houston     x[_-]men            hobbit              xwing
+
+--Mix
+casino food
+
+--Motor
+ac.schnitzer        acura               alfa.romeo          alpina
+aston.?martin       audi                auto                bentley
+bike                bmw                 brabus              bugatti
+cadillac            camaro              car                 caterham
+chevrolet           citroen             corvette            daewoo
+daihatsu            delorean            dodge               ducati
+engine              ferrari             fiat                ford
+formula             formula1            gaz                 gilera
+grand.?prix         harley.?davidson    hispano             holden
+honda               hummer              hyundai             infiniti
+isuzu               jaguar              jeep                jeep
+kawasaki            koenig?seg          lambo               lamborghini
+lancia              land.?rover         lexus               lincoln
+lotus               mass?erati          maybach             mazda
+mazel               mclaren             mdx                 mercedes
+mercury             mitsubishi          morgan              motor
+motorcycle          nissan              opel                pagani
+peugeot             pininfarina         pontiac             porsche
+railroad            renault             road                roadster
+rolls.?royce        saleen              sangyong            scania
+scion               shelby              skoda               speedster
+sterling            subaru              suzuki              tesla
+toyota              train               triumph             uaz
+vehicle             volkswagen          volvo               vwgolf
+wagon               yamaha              zero.?ds            zero.?fx
+zero.?s             tesla
+
+--Naturaleza
+angel.?falls        artic               autumn              bamboo
+california          canyon              coast               coastal
+country             dandelion           desert              fiji
+florida             flower              forest              garden
+grass               halfdome            iceberg             kentucky
+lake                landscape           leaves              lighthouse
+marine              maryland            matterhorn          montana
+mountain            mountains           mushroom            natural
+nature              new.?zealand        niagara             ocean
+paradise            pebbles             pennsylvania        rainier
+river               sahara              spring              summer
+sunrise             sunset              svetlana            tanzania
+tree                trees               valley              victoria.?crater
+virginia            volcano             waterfall           watermelon
+winter              woods               yellowstone         yosemite
+
+--Planes
+airbus              aircraft            boeing              copter
+fairchild           heinkel             lockheed            northrop
+plane               sikorsky            spitfire            sukhoi
+wings               messerschmidt
+
+--Ships
+carrier             cruiser             ship                yacht
+
+--Space
+astronaut           comet               espacio             estrella
+galaxia             galaxy              jupiter             mars
+milky.?way          moon                nasa                satellite
+saturn              shuttle             space               star
+univers[eo]
+
+--Scrap
+abigail             abstract            ada                 adela
+adriana             adrienn             alejandra           alena
+alessandra          alexandra           ali.?landry         alice
+alicia              alyson              alyssa              amanda
+amazin.?amie        amber               amy.?acker          ana
+anastasia           andree?a            angel.?faith        angela
+angelica            angelina            anja                ann.?van.?elsen
+anna                anne                annelyse            ariadne
+ashley              asian               ass                 audrey
+avril               barba?ra            beatriz             beyonce
+bianca              billie              blondi?e            bobbi
+bonnie              boobs               brande              bridget.?moynahan
+britany             brittany            bronde              brook
+brooke              brooks              brunette            cailin
+californication     cameron             camila              camille
+candice             cara                carla               carolina
+caroline            carrie              catalina            catherine
+catrine             catrinel            cecile              celina
+charlize            charlott            cheerleader         christina
+cindy               claire              clara               claudia
+constance           daniela             daniell             dannii
+darla               denise              diann?a             dita.?von.?teese
+dyana               edita               elena               eleni
+eli?sh?a            ?a                  elizabeth           elle
+emanuela            emily               emma                emmanuelle
+estella             eva                 frida               ftop.?ru
+gemma               geri                gertrud             gillian
+ginny               girl                glamorous           heather
+heidi               hill?ary            holly               irina
+i[sz]abel           jakki               jenna               jennifer
+jessica             juli[ae]            justin.bieber       kasenia
+kate                katherine           kat?rina            katy
+kelly               kh?ristina          kilie               kirstie
+ksenia              lana.?del.?rey      linda               lindsay
+lingerie            lisa                luisa               magdalena
+marin?a             marinet             megan.?fox          mell?iss?a
+michelle            mila.?kunis         miranda             model
+moni[ck]a           nastya              natalia             natasha
+nelly               nicole              nude                olivia
+piercing            playboy             rachel              raphaella
+redhair             rosie               sandra              sara
+sarah               scarlet             sensual             sex
+sharon              sofia               sophia              sophie
+sunny.?leone        surreal             susan               swimsuit
+tamara              tatiana             tatoo               taylor
+ursula              vector              veneda              vera
+veronica            victoria            woman               xenia
+ya[sz]mine          yara                yesica              yolanda
+yolanthe            yvonne              zhenya              littlepony
+
+--Tecno
+android             apple               audio               computer
+debian              dell                hewlett.?packard    ibm
+internet            iphone              linux               macos
+motherboard         motorola            nintendo            nokia
+nvidia              packard.?bell       panasonic           red.?hat
+samsung             sony                toshiba             transistor
+ubuntu              unix                windows
+
+--Turismo
+beach               caribe              fiji                hawaii
+holidays            island              maldivas            maldives
+maldivian           polinesia           seychelles          tahiti
+tourism             tropic              turismo
+
+--Numbers
+^[\d_\-bcdfghjklmnpqrstvwxyz]+.jpg$
+^(m_e_h|img|image|wallpaper)[\d_-]+.jpg$
+^o\d+\.jpg$
+^(big|wallpaper|desktop)?[0-9a-h_\-].jpg$
+abi.?titmus
+^[0-9a-h]+.jpg$
+^.\.jpg$
+^..\.jpg$
+^...\.jpg$
+^....\.jpg$
+# }}}

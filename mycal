@@ -1,0 +1,204 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+mycal - Calculadora sencilla
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item mycal [-h|--help|-u|-V|--version]
+
+=item mycal [-v] [-f FORMULA] [FILE]
+
+=back
+
+=head1 DESCRIPTION
+
+Esta es una calculadora sencilla.
+Teclea una formula o <Q> para terminar. <HELP> para ayuda.
+
+Puedes utilizarla para realizar calculos sencillos o complejos, e incluso
+se puede programar, creando un fichero de texto con las formulas y despues
+ejecutando ese fichero de texto con:
+   CAL Fichero
+
+Para asignar valores a variables se puede poner:
+   $var=formula
+
+Se pueden usar los operadores suma, resta, multiplicación, división,
+exponenciación (**), asi como los paréntesis y ciertas funciones.
+
+Comandos disponibles:
+   <Q>           Salir
+   <HELP>        Presenta esta ayuda
+   <VARS>        Muestra las variables existentes
+   <ECHO ON|OFF> Muestra el resultado de la formula que se esta
+                 evaluando (para programas)
+
+Comentarios con                     #
+
+Elevar a un numero X**Y
+
+Raiz Cuadrada: SQRT o **.5
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-f FORMULA>
+
+Evalua la formula y sale.
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2013 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+# Cant use strict --> Variables created dinamically by user
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+my $pi      = 3.141592;
+
+# }}}
+# {{{ Parametros
+my %opt;
+getopts("f:huvV",\%opt) or usage("Fallo parámetros");
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+
+# }}}
+# {{{ Variables
+$ultimo = 0;
+$TEXTO  = "";
+push @LISTA, '$pi';
+push @LISTA, '$ultimo';
+
+# }}}
+sub pi(){
+    return 3.141592654
+}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+$TEXTO = $opt{f}||<STDIN>;
+$echo = 1;
+while ( $TEXTO !~ /^q/i ) {    # Si es q SALIR
+    $TEXTO =~ tr/A-Z/a-z/;
+    if ( $TEXTO =~ /^[\+\-\*\/]/ ) {
+        $TEXTO = "$ultimo " . $TEXTO;
+    }
+    if ( $TEXTO eq "vars" ) {
+        print "-" x 79 . "\n";
+        $ANT = "";
+        foreach $A ( sort @LISTA ) {
+            if ( $A ne $ANT ) {
+                $B = eval $A;
+                print "$A = $B\n";
+                $ANT = $A;
+            }
+        }
+        print "-" x 79 . "\n";
+    } elsif ( $TEXTO =~ /^help$/i ) {
+        help(1);
+    } elsif ( $TEXTO =~ /^echo on$/i ) {
+        $echo = 1;
+    } elsif ( $TEXTO =~ /^echo off$/i ) {
+        $echo = 0;
+    } elsif ( $TEXTO =~ /^(#)/ ) {    # Si es comentario
+        if ($echo) { print $TEXTO . "\n"; }
+    } elsif ( $TEXTO =~ /^$/ ) {      # Si es linea en blanco
+    } elsif ( $TEXTO !~ /=/ ) {       # Si no tiene un igual y empieza por $
+        if ( $TEXTO =~ /^\$/ ) {
+            $VALOR1 = "$TEXTO";
+            print $VALOR1 ;
+            $TEXTO = '$VALOR1 = (' . $TEXTO . ')';
+            eval $TEXTO;
+            print " ==> " . $VALOR1 . "\n";
+            $ultimo = $VALOR1;
+        } else {
+            $TEXTO = '$VALOR1 = (' . $TEXTO . ')';
+            eval $TEXTO;
+            $ultimo = $VALOR1;
+            if ($echo) { print "=> " . $VALOR1 . "\n"; }
+        }
+    } else {
+        if ( $TEXTO =~ /^\$/ ) {
+            $VARIABLE = "";
+            for ( $I = 0; substr( $TEXTO, $I, 1 ) ne '='; $I++ ) {
+                $VARIABLE .= substr( $TEXTO, $I, 1 );
+            }
+            push @LISTA, $VARIABLE;
+        }
+        $TEXTO = '$VALOR1 = (' . $TEXTO . ')';
+        eval $TEXTO;
+        if ($echo) { print "=> " . $VALOR1 . "\n"; }
+    }
+    if ($opt{f}) { exit 0 }
+    $TEXTO = <STDIN>;
+    chop $TEXTO;
+}
+
+# }}}
+# {{{ Salimos
+$pi     = "";    # to keep -w happy
+$ultimo = "";
+exit 0;
+
+# }}}

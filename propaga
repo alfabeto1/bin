@@ -1,0 +1,328 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+B<propaga> - Sincronizador de directorios /home/data/{bin,etc,var}
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<propaga> [-h|-u|-V]
+
+=item B<propaga> [-v] [-s] [ [-d] | [-f] [-r] ]
+
+=back
+
+=head1 DESCRIPTION
+
+Ejecuta las sincronizaciones definidas en unison bin, etc y var.
+
+También se sincroniza myplaces.kml.
+
+Se copia bin a /root si se ha pedido.
+
+Se hace limpieza antes y despues de copiar.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-d>
+
+Se hace solo la sincronizacion de devel
+
+=item B<-f>
+
+Se hace la sincronización también de qrevisa y autoplan.
+
+=item B<-h>
+
+Help. Muestra la información de ayuda completa.
+
+=item B<-l>
+
+Local. Se copia tambien directorio local.
+
+=item B<-r>
+
+Root. Se hace copia de bin y etc al home de root. Con B<sudo>. Sólo
+si se trata de B<saruman>.
+
+=item B<-s>
+
+Se hace copia rapida.
+
+=item B<-u>
+
+Usage. Muestra la información básica de uso.
+
+=item B<-v>
+
+Verbose. Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Version. Muestra la versión del comando.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. B<GNU
+General Public License>.
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+function check_rc {
+    # Comprobamos return code de unison
+    case $1 in
+        0) logv "successful sync." ;;
+        1) logv "all file transfers were successful; some files were skipped." ;;
+        2) logv "non-fatal failures during file transfer." ;;
+        3) logv "fatal error occurred; execution was interrupted." ;;
+        *) logv "unknown exit code. $1" ;;
+    esac
+}
+
+# }}}
+# {{{
+function do_clean {
+# Hacemos limpieza
+    dolog Cleaning
+    cd $HOME/bin
+    ~/bin/clean -r >/dev/null
+    chmod +x *
+    cd $HOME/etc
+    ~/bin/clean -r >/dev/null
+    cd $HOME/var
+    ~/bin/clean -r >/dev/null
+    cd
+}
+
+# }}}
+# {{{
+function dolog {
+    echo [$(date +%H:%M:%S)] $*
+}
+# }}}
+# {{{
+function elapsed {
+    # Show elapsed time
+    if test "$verbose" == "on"; then
+        ((h=${1}/3600))
+        ((m=(${1}%3600)/60))
+        ((s=${1}%60))
+        printf "(%02d:%02d:%02d) Elapsed time\n" $h $m $s
+    fi
+}
+# }}}
+# {{{
+function help {
+    pod2text -c $0
+    exit 1
+}
+
+# }}}
+# {{{
+function logv {
+    if test "$verbose" == "on"; then
+        dolog $*
+    fi
+}
+
+# }}}
+# {{{
+function usage {
+    if test "$*"; then
+        echo $*
+    fi
+    pod2usage -verbose 1 $0
+    exit 1
+}
+
+# }}}
+# {{{
+function version {
+    echo "${0/*\//} - $VERSION"
+    exit 1
+}
+# }}}
+# {{{
+function syncwith {
+    # Sincronizar un servidor
+    server=$1
+    devel=$2
+    if doping -q $server; then
+        cd
+        dosync $server
+        if [ "$full" ==  "on" ]; then
+            if [ "$devel" == "1" ]; then
+                cd ~/Dropbox
+                dosync -r -d devel $server
+            fi
+        fi
+    else
+        dolog $1 no está activo
+    fi
+}
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Variables
+VERSION="$Revision: 3.2 $"
+VERSION=${VERSION#:\ }
+VERSION=${VERSION%\ \$}
+ERR1='Opcion no soportada'
+u=~/.unison
+export UNISON=$u
+ucmd="unison -silent"
+HOSTNAME=`hostname`
+syncroshort="ssh etc2 bin2 lib2 var2"
+syncrobin="bin4 bin2 bin3 lib4 lib2"
+syncrodevel="devel3 devel2"
+syncro="bin4 bin3 bin2 etc4 etc2 etc3 lib4 lib2 var2 var var1 var4i ssh"
+
+# }}}
+# {{{ Parametros
+while getopts bdhflrsuvV-: options; do
+    case "$options" in
+        b)
+            dolog Sincronizacion bin
+            syncro=$syncrobin
+            ;;
+        d)
+            dolog Sincronizando solo devel
+            syncro=$syncrodevel
+            ;;
+        f)
+            full=on
+            dolog Sincronizacion full
+            syncro="$syncro devel3 devel2 qrevisa archive"
+            ;;
+        l)  local=on ;;
+        v)
+            verbose=on
+            ucmd="unison -terse "
+            ;;
+        r)  root=on ;;
+        s)
+            dolog Sincronizacion rapida
+            syncro=$syncroshort
+            ;;
+        h)  help ;;
+        u)  usage ;;
+        V) version ;;
+       \?) usage "Fallo parámetros";;
+        -) if [ "$OPTARG" == "version" -o "$OPTARG" == "help" ]; then
+               $OPTARG;
+           else
+               usage "Fallo parámetros"
+           fi;;
+    esac
+done
+shift $(( $OPTIND - 1 ))
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Check current host
+dolog Inicio
+# }}}
+# {{{ Copiamos myplaces.kml
+HOSTNAME=`hostname`
+dolog copiando myplaces.kml
+if [ "$HOSTNAME" == "saruman" ] ; then
+    cp -u --preserve=timestamps \
+       ~/.googleearth/myplaces.kml \
+       ~/Dropbox/GoogleEarth
+    cp -bu --preserve=timestamps \
+       ~/Dropbox/GoogleEarth/myplaces.kml  \
+       ~/.googleearth/myplaces.kml
+fi
+if [ "$HOSTNAME" == "ESPLPA10L336303" ] ; then
+    cp -u --preserve=timestamps \
+       /mnt/c/Users/ES42823989J/AppData/LocalLow/Google/GoogleEarth/myplaces.kml \
+       ~/DATOS/Dropbox/GoogleEarth
+    cp -bu --preserve=timestamps \
+       ~/DATOS/Dropbox/GoogleEarth/myplaces.kml  \
+       /mnt/c/Users/ES42823989J/AppData/LocalLow/Google/GoogleEarth/myplaces.kml
+fi
+
+do_clean
+
+# }}}
+# {{{ Sincronizacion
+for i in $syncro; do
+    if [ -f $UNISON/$i.prf ]; then
+        dolog $i
+        echo $ucmd -batch $i
+        $ucmd -batch $i 2>/dev/null
+        check_rc $?
+    fi
+done
+# }}}
+# {{{ Actualizamos man
+dolog Actualizamos man
+cd bin >/dev/null
+~/bin/cmd2man *
+cd - >/dev/null
+
+# }}}
+# {{{ Copiamos local
+if test $local ; then
+    dolog copiamos local
+    cd
+    mkdir -p ~/DATOS/Dropbox/local
+    tar -czf ~/DATOS/Dropbox/local/$HOSTNAME.tgz ~/local
+fi
+
+# }}}
+# {{{ Copiamos a root
+# solo si se ha pedido
+if test $root ; then
+    dolog rsync bin a root
+    sudo rsync --links --delete -uirtm ~/bin/ /root/bin
+    dolog rsync etc a root
+    sudo rsync --links --delete -uirtm ~/etc/ /root/etc
+    dolog rsync lib a root
+    sudo rsync --links --delete -uirtm ~/lib/ /root/lib
+fi
+
+# }}}
+dolog Fin
+elapsed $SECONDS
+exit 0
+# }}}

@@ -1,0 +1,322 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<cssbeautify> - Mejora la legibilidad de los css
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item cssbeautify [-h|--help|-u|-V|--version]
+
+=item cssbeautify [-v] F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Mejora la legibilidad de los css. Se pasan a mayúsculas ciertas
+palabras clave, mientras otras se pasan a minúscula.
+
+Este script es un filtro. A falta de un nombre de fichero que tomar como
+entrada, lee de la entrada estándar. Siempre escribe el resultado en la
+salida estándar.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2015 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{
+# Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{
+# Constantes (o casi)
+our $VERSION = substr q$Revision: 3.2 $, 10;
+my $POS = 25;
+my @HTMLWORDS=qw/
+    a        big      body     br       caption  center   code     div      em
+    fieldset footer   form     h1       h2       h3       h4       h5
+    head     header   hr       html     img      input    label    legend   li
+    link     map      meta     p        pre      samp     script   select
+    small    span     strong   table    tbody    td       textarea th
+    thead    title    tr       ul
+/;
+my @CSSWORDS=qw/
+    absolute         action           align            alt              auto
+    background       background-color behavior         bgcolor          block
+    bold             border           border-bottom    border-collapse
+    border-left      border-radius    border-right     border-spacing
+    border-top       bordercolor      bordercolordark  bordercolorlight both
+    center           clear            code             collapse         color
+    content          display          dotted           fixed            float
+    focus            font-family      font-size        font-weight      height
+    hover            hover            inline           invisible        left
+    letter-spacing   list-style-type  margin           margin-bottom
+    margin-left      margin-top       max-width        monospace        none
+    onload           overlow          padding          padding-bottom
+    padding-left     padding-right    padding-top      position
+    relative         sans-serif       serif            size             solid
+    text-align       text-decoration  title            top
+    underline        valign           visible          visited          width
+    z-index
+/;
+
+my %COLORS = qw/
+    000    BLACK             000000 BLACK           BDB76B DARKKHAKI       C0C0C0 SILVER
+    000080 NAVY              00008B DARKBLUE        C71585 MEDIUMVIOLETRED CD5C5C INDIANRED
+    0000CD MEDIUMBLUE        0000FF BLUE            CD853F PERU            D2691E CHOCOLATE
+    006400 DARKGREEN         008000 GREEN           D2B48C TAN             D3D3D3 LIGHTGRAY
+    008080 TEAL              008B8B DARKCYAN        D8BFD8 THISTLE         DA70D6 ORCHID
+    00BFFF DEEPSKYBLUE       00CED1 DARKTURQUOISE   DAA520 GOLDENROD       DB7093 PALEVIOLETRED
+    00FA9A MEDIUMSPRINGGREEN 00FF00 LIME            DC143C CRIMSON         DCDCDC GAINSBORO
+    00FF7F SPRINGGREEN       00FFFF AQUA            DDA0DD PLUM            DEB887 BURLYWOOD
+    00FFFF CYAN              191970 MIDNIGHTBLUE    E0FFFF LIGHTCYAN       E6E6FA LAVENDER
+    1E90FF DODGERBLUE        20B2AA LIGHTSEAGREEN   E9967A DARKSALMON      EE82EE VIOLET
+    228B22 FORESTGREEN       2E8B57 SEAGREEN        EEE8AA PALEGOLDENROD   F08080 LIGHTCORAL
+    2F4F4F DARKSLATEGRAY     32CD32 LIMEGREEN       F0E68C KHAKI           F0F8FF ALICEBLUE
+    3CB371 MEDIUMSEAGREEN    40E0D0 TURQUOISE       F0FFF0 HONEYDEW        F0FFFF AZURE
+    4169E1 ROYALBLUE         4682B4 STEELBLUE       F4A460 SANDYBROWN      F5DEB3 WHEAT
+    483D8B DARKSLATEBLUE     48D1CC MEDIUMTURQUOISE F5F5DC BEIGE           F5F5F5 WHITESMOKE
+    4B0082 INDIGO            556B2F DARKOLIVEGREEN  F5FFFA MINTCREAM       F8F8FF GHOSTWHITE
+    5F9EA0 CADETBLUE         6495ED CORNFLOWERBLUE  FA8072 SALMON          FAEBD7 ANTIQUEWHITE
+    66CDAA MEDIUMAQUAMARINE  696969 DIMGRAY         FAF0E6 LINEN           FAFAD2 LIGHTGOLDENRODYELLOW
+    6A5ACD SLATEBLUE         6B8E23 OLIVEDRAB       FDF5E6 OLDLACE         FF0000 RED
+    708090 SLATEGRAY         778899 LIGHTSLATEGRAY  FF00FF FUCHSIA         FF00FF MAGENTA
+    7B68EE MEDIUMSLATEBLUE   7CFC00 LAWNGREEN       FF1493 DEEPPINK        FF4500 ORANGERED
+    7FFF00 CHARTREUSE        7FFFD4 AQUAMARINE      FF6347 TOMATO          FF69B4 HOTPINK
+    800000 MAROON            800080 PURPLE          FF7F50 CORAL           FF8C00 DARKORANGE
+    808000 OLIVE             808080 GRAY            FFA07A LIGHTSALMON     FFA500 ORANGE
+    87CEEB SKYBLUE           87CEFA LIGHTSKYBLUE    FFB6C1 LIGHTPINK       FFC0CB PINK
+    8A2BE2 BLUEVIOLET        8B0000 DARKRED         FFD700 GOLD            FFDAB9 PEACHPUFF
+    8B008B DARKMAGENTA       8B4513 SADDLEBROWN     FFDEAD NAVAJOWHITE     FFE4B5 MOCCASIN
+    8FBC8F DARKSEAGREEN      90EE90 LIGHTGREEN      FFE4C4 BISQUE          FFE4E1 MISTYROSE
+    9370DB MEDIUMPURPLE      9400D3 DARKVIOLET      FFEBCD BLANCHEDALMOND  FFEFD5 PAPAYAWHIP
+    98FB98 PALEGREEN         9932CC DARKORCHID      FFF    WHITE           FFF0F5 LAVENDERBLUSH
+    A0522D SIENNA            A52A2A BROWN           FFF5EE SEASHELL        FFF8DC CORNSILK
+    A9A9A9 DARKGRAY          ADD8E6 LIGHTBLUE       FFFACD LEMONCHIFFON    FFFAF0 FLORALWHITE
+    ADFF2F GREENYELLOW       AFEEEE PALETURQUOISE   FFFAFA SNOW            FFFF00 YELLOW
+    B0C4DE LIGHTSTEELBLUE    B0E0E6 POWDERBLUE      FFFFE0 LIGHTYELLOW     FFFFF0 IVORY
+    B22222 FIREBRICK         B8860B DARKGOLDENROD   FFFFFF WHITE
+    BA55D3 MEDIUMORCHID      BC8F8F ROSYBROWN
+    /;
+
+# }}}
+# {{{
+# Variables
+my $text='';
+my $oncomment=0;
+my %opt;
+my $spaces='';
+# }}}
+# {{{ Parametros
+getopts('huvV',\%opt) or usage('Fallo parámetros');
+help()              if $opt{h};
+usage()             if $opt{u};
+if ($opt{V}){version();exit 1;}
+warn "Args=@ARGV\n" if $opt{v};
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Pretratamiento: separar lineas
+{
+    local $/;
+    $text = <>;
+}
+$text =~ s/\r\n/\n/g;
+$text =~ s/^\n+//;
+$text =~ s/\{ *(\S)/{\n$1/g;
+$text =~ s/ *\{/ {/g;
+$text =~ s/\} *(\S)/}\n\n$1/g;
+$text =~ s/\}\n+/}\n\n$1/g;
+$text =~ s/([a-z0-9%]);?\s*(\})/$1;\n}/g;
+$text =~ s/\}\n+\}/}\n}/g;
+$text =~ s/;( *[\-a-z])/;\n$1/gi;
+$text =~ s/\*\/(.)/*\/\n$1/g;
+$text =~ s/\t/    /g;
+$text =~ s/  +\{/ {/g;
+$text =~ s/:  +/: /g;
+$text =~ s/\n\n+/\n/;
+
+# }}}
+# {{{
+# Procesando cada linea
+foreach (split /\n/,$text){
+    # {{{
+    # Eliminamos indentacion si hay cierre de bloque
+    if (/}/){
+        $spaces =~ s/    //;
+    }
+
+    # }}}
+    # {{{
+    # Identificamos comentarios
+    if (/\/\*/){
+        $oncomment=1;
+    }
+
+    # }}}
+    # {{{
+    # A mayusculas palabras clave HTML
+    for my $i(@HTMLWORDS){
+        s/^($i)\b/\U$1/gi;
+        s/ ($i)([ ,\.\[:])/ \U$1$2/gi;
+    }
+
+    # }}}
+    # {{{
+    # A minusculas palabras clave CSS
+    for my $i(@CSSWORDS, '\d+px'){
+        s/\b($i)\b/\L$1/gi;
+    }
+
+    # }}}
+    # {{{
+    # Expandir colores de 3 digitos a 6
+    s/\#([0-9a-h])([0-9a-h])([0-9a-h])([ ;])/#$1$1$2$2$3$3$4/i;
+
+    # }}}
+    # {{{
+    # Corregir nombres de colores
+    s/LIGHTGREY/LIGHTGRAY/i;
+    s/DARKGREY/DARKGRAY/i;
+    s/\bGREY\b/GRAY/i;
+    s/SLATEGREY/SLATEGRAY/i;
+    s/LIGHTSLATEGREY/LIGHTSLATEGRAY/i;
+    s/DIMGREY/DIMGRAY/i;
+    s/DARKSLATEGREY/DARKSLATEGRAY/i;
+
+    # }}}
+    # {{{
+    # Nombres de los colores y valores HEXADECIMALES
+    for my $i(keys %COLORS){
+        my $name = $COLORS{$i};
+        s/\b($name);/\U$1;/gi;
+    }
+    s/ (#[0-9a-f]{6})([ ;])/ \U$1$2/gi;
+    for my $i(keys %COLORS){
+        my $name = $COLORS{$i};
+        s/ #$i;/ $name;/i;
+        s/ #$i / $name /i;
+    }
+
+    # }}}
+    # {{{
+    # Espacio despues de coma
+    s/,(\S)/, $1/g;
+
+    # }}}
+    # {{{
+    # espacio al comienzo de linea
+    if ($spaces and
+        (
+        (!/\*\// and !/\/\*/) or
+         /(\S).*\/\*.*\*\//)
+        ){
+        s/^ */$spaces/;
+    }
+
+    # }}}
+    # {{{
+    # Alinear los :
+    if (/^\s+.*:.*;/){
+        s/ *: */ : /;
+        my $p = index($_,':');
+        if ($p){
+            while ($p <$POS){
+                s/:/ :/;
+                $p++;
+            }
+        }
+    }
+
+    # }}}
+    # {{{
+    # Separar comentarios en linea
+    if ( /(.*;) *(\/\*.*\*\/.*)/){
+        my $a = $1;
+        my $b = $2;
+        while (length($a)<40){
+            $a.=' ';
+        }
+        $_="$a $b";
+    }
+
+    # }}}
+    # {{{
+    # Limpiamos espacios y emitimos
+    s/ +$//;
+    s/ +;$/;/;
+    print "$_\n";
+
+    # }}}
+    # {{{
+    # Identificamos si hay que indentar
+    if (/\{/){
+        $spaces.='    ';
+    }
+
+    # }}}
+}
+exit 0;
+# }}}

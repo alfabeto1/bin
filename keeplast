@@ -1,0 +1,13 @@
+#!/usr/bin/bash
+### keep last n files from given prefix
+
+prefix=$1
+if [ -z "$prefix" ];then
+    echo "uso: keeplast PREFIJO [numero_a_conservar]"
+    exit
+fi
+number=${2:-10}
+FILES=`find ${prefix}* -type f |sort -r|buthead ${number}`
+if [ ! -z "$FILES" ]; then
+    rm $FILES
+fi

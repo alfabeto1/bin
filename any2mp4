@@ -1,0 +1,46 @@
+#!/bin/bash
+# Conversion de fichero de video a mp4 (x264+mp3)
+file=$1
+[ -f $file ] || exit 1
+
+SUBTITLES=' -c:s copy '
+fileoutput=$file.mp4
+fileoutput=${fileoutput/.mkv/}
+fileoutput=${fileoutput/.mpg/}
+fileoutput=${fileoutput/.avi/}
+fileoutput=${fileoutput/.mov/}
+ffprobe -v error -select_streams s -show_entries stream=index,codec_name \
+    -of default=nokey=1:noprint_wrappers=1 $file \
+    | grep -iq subtitle || SUBTITLES=''
+echo Procesando $file
+echo Generando $fileoutput
+(pv $file|nice ffmpeg -i pipe:0 \
+    -c:v libx264 -c:a libmp3lame $SUBTITLES -crf 20 \
+    -nostats -y -preset medium -b:a 128k -strict -2 -loglevel warning \
+    -hide_banner $fileoutput \
+    || \
+nice ffmpeg -i $file \
+    -c:v libx264 -c:a libmp3lame $SUBTITLES -crf 20 \
+    -nostats -y -preset medium -b:a 128k -strict -2 -loglevel warning \
+    -hide_banner $fileoutput) \
+    && trash-put $file && names $fileoutput
+    # -map 0:a? -map 0:s? -map 0:v \
+NUL=<<EOF
+"-c:v libx264" indica que se utilizará el codec de video H.264 para la
+codificación de video.
+
+"-crf 20" especifica el nivel de compresión de video. Un valor más bajo produce
+una calidad de video más alta y un tamaño de archivo más grande.
+
+"-preset medium" define el nivel de velocidad de la codificación. Valores más
+altos producen una velocidad de codificación más rápida, pero a costa de una
+calidad de video más baja.
+
+"-c:a libmp3lame" indica que se utilizará el codec de audio mp3 para la
+codificación de audio.
+
+"-b:a 128k" establece la tasa de bits de audio en 128 Kbps.
+
+"-c:s copy" indica que los subtítulos se copiarán sin cambios al archivo
+convertido.
+EOF

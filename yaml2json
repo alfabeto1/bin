@@ -1,0 +1,22 @@
+#!/usr/bin/perl
+###     YAML <-> JSON converter by Perl
+
+# Prerequisite installation
+# JSON YAML::Tiny
+
+use strict;
+use utf8;
+use Encode qw( decode encode );
+# use Scalar::Util qw(blessed reftype);
+use JSON;
+use YAML::Tiny;
+
+my $str = do { local $/; <>; };
+
+# yaml2json mode:
+print
+    JSON->new
+    ->ascii->pretty
+    ->encode( Load $str )
+;
+exit;

@@ -1,0 +1,123 @@
+#!/bin/bash
+### Wallpaper aleatorio con calendario
+# {{{
+# Variables y valores por defecto
+FONT='Liberation-mono'
+#DIRDEFAULT=/pub/fotos/2019
+DIRDEFAULT=/pub1/Wallpapers
+TASKS=~/Dropbox/NOTAS/Tareas.md
+TEMP=/tmp/wallpaper.jpg
+TEMPCAL=/tmp/calendario.txt
+COLORBASE=yellow
+# }}}
+# {{{
+# Options
+if [ "$1" =  "-b" ]; then
+    shift
+    DIRDEFAULT=$1
+    shift
+fi
+if [ "$1" =  "-t" ]; then
+    tareas=1
+    shift
+fi
+tareas=1    ####### Provisional
+if [ "$1" =  "-n" ]; then
+    COLORBASE=black
+    shift
+fi
+# }}}
+# {{{
+# Parameters
+DIR=$1
+COLOR=$2
+POINTSIZE=$3
+if [ "$DIR" = "" ] ; then
+    DIR=.
+fi
+IMG=$(find $DIRDEFAULT -type f -name '*.jpg'|grep -v thumbs| grep -i $DIR |shuf -n1)
+# echo $IMG
+
+if [ "$COLOR" = "" ] ; then
+    COLOR=$COLORBASE
+fi
+if [ "$POINTSIZE" = "" ] ; then
+    POINTSIZE=28
+fi
+# echo $IMG
+echo "$IMG" >>~/wallpapers.txt
+
+# }}}
+# {{{
+# Prepare image
+
+ncal -b > $TEMPCAL
+sed -i -e 's/_.//g' $TEMPCAL
+echo $IMG
+image_width=$(identify -format "%w" "$IMG")
+todual "$IMG"
+mv /tmp/imagen.jpg "$TEMP"
+
+# if [ "$image_width" -gt 1920 ]; then
+#     isdual=1
+    # POINTSIZE=18
+    Y1=50
+    Y2=50
+    X=3400
+    convert -resize 3840x -crop 3840x1080+0+0 -gravity center "$TEMP" "$TEMP"
+    convert -resize x1080 -crop 3840x1080+0+0 -gravity center "$TEMP" "$TEMP"
+    convert -draw "text $X,$Y2 \" `cat $TEMPCAL`  \"" \
+        -font "$FONT" \
+        -fill $COLOR \
+        -pointsize $POINTSIZE \
+        -quality 98 \
+        "$TEMP" "$TEMP"
+# else
+#     echo TO DUAL
+#     # Y1=60
+#     # Y2=60
+#     # convert -resize 1920x -crop 1920x1080+0+0 -gravity center $IMG "$TEMP"
+#     # convert -resize x1080 -crop 1920x1080+0+0 -gravity center "$TEMP" "$TEMP"
+#     # convert -draw "text 1550,$Y2 \" `cat $TEMPCAL`  \"" \
+#     #     -font "$FONT" \
+#     #     -fill $COLOR \
+#     #     -pointsize $POINTSIZE \
+#     #     -quality 98 \
+#     #     "$TEMP" "$TEMP"
+#     isdual=1
+#     Y1=50
+#     Y2=50
+#     X=3400
+#     convert -resize 3840x -crop 3840x1080+0+0 -gravity center "$TEMP" "$TEMP"
+#     convert -resize x1080 -crop 3840x1080+0+0 -gravity center "$TEMP" "$TEMP"
+#     convert -draw "text $X,$Y2 \" `cat $TEMPCAL`  \"" \
+#         -font "$FONT" \
+#         -fill $COLOR \
+#         -pointsize $POINTSIZE \
+#         -quality 98 \
+#         "$TEMP" "$TEMP"
+# fi
+if [ $tareas ]; then
+    convert -draw "text 20,$Y1 \"`grep -v index.md ~/Dropbox/NOTAS/Tareas.md`\"" \
+            -font "$FONT" \
+            -fill $COLOR \
+            -pointsize 18 \
+            "$TEMP" "$TEMP"
+fi
+rm $TEMPCAL
+# }}}
+# {{{
+# Set background
+# DISPLAY=:0.0 notify-send -t 60 "$IMG"
+DISPLAY=:0.0 gsettings set org.gnome.desktop.screensaver picture-uri file://$IMG
+DISPLAY=:0.0 gsettings set org.gnome.desktop.background  picture-uri file://$TEMP
+# if [ $isdual ]; then
+    DISPLAY=:0.0 gsettings set org.gnome.desktop.screensaver picture-options spanned
+    DISPLAY=:0.0 gsettings set org.gnome.desktop.background  picture-options spanned
+    DISPLAY=:0.0 feh -V --no-xinerama --bg-fill "$TEMP" 
+# else
+#     DISPLAY=:0.0 gsettings set org.gnome.desktop.screensaver picture-options zoom
+#     DISPLAY=:0.0 gsettings set org.gnome.desktop.background  picture-options zoom
+#     DISPLAY=:0.0 feh -V --bg-fill "$TEMP"
+# fi
+# }}}

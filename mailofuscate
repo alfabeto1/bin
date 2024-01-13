@@ -1,0 +1,260 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<mailofuscate> - Ofusca una dirección de email para protegerlo de spammers
+
+=head1 DESCRIPTION
+
+Dar como entrada el email y el nombre a ofuscar, p.e:
+lah.data@gmail.com Luís Arocha Hernández
+da como resultado:
+
+<a href="&#x6D;&#x61;&#x69;&#x6C;&#x74;&#x6F;&#58;&#x6C;&#x61;&#x68;&#x2E;&#x64;&#97;t&#x61;&#64;
+&#103;&#109;&#97;&#105;&#108;&#x2E;c&#x6F;&#x6D;">&#x4C;&#117;&iacute;&#x73;&#x20;&#65;&#114;
+&#111;&#x63;&#x68;a&#32;H&#101;r&#x6E;&#x20;&aacute;&#32;&#x6E;&#100;&#x65;&#122;</a>
+
+Para terminar Ctrl-d
+
+La entrada esperada (ya sea por fichero, o por entrada estándar) es: email, espacio, nombre.
+
+NOTA: El ejemplo se ha separado en varias líneas para mayor legibilidad. La salida se produce en una
+sóla línea.
+
+=head1 CAVEATS
+
+La protección que da este método, por supuesto, es relativa.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+while (<>) {
+    chomp;
+    my ($a, $b) = split / /,$_,2;
+    $a = lc($a);
+    $b = $b?tohtml($b):"Correo";
+    print "<a href=\"";
+    print EncodeEmailAddress("mailto:$a");
+    print "\">";
+    print EncodeEmailAddress("$b");
+    print "</a>";
+    print "\n";
+    next;
+}
+exit 0;
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+sub EncodeEmailAddress {                                                   # {{{
+    # Output: input string with each character randomly encoded as:
+    # * a decimal entity
+    # * a hex entity
+    # * raw value
+    my $addr = shift;
+    srand;
+    my @encode = (
+        sub { '&#' .                 ord(shift)   . ';' },
+        sub { '&#x' . sprintf( "%X", ord(shift) ) . ';' },
+        sub {                            shift          },
+    );
+    my @chars = split //,$addr;
+    $addr='';
+    my $encode=1;
+    foreach (@chars){
+        my $char = $_;
+        if ($char eq '&'){
+            $encode = 0;
+        }
+        if ($encode){
+            if ( $char eq '@' ) {
+                # this *must* be encoded. I insist.
+                $char = $encode[int rand 1]->($char);
+            } elsif ($char =~ /[a-z0-9 -_,\.\<\>\+\[\]\{\}]/){
+                my $r = rand;
+                # roughly 10% raw, 45% hex, 45% dec
+                $char = (
+                    $r > .9   ?  $encode[2]->($char)  :
+                    $r < .45  ?  $encode[1]->($char)  :
+                                $encode[0]->($char)
+                );
+            }
+        } else {
+            if ($char eq ';'){
+                $encode=1;
+            }
+        }
+        $addr.=$char;
+    }
+    return $addr;
+}
+
+# }}}
+sub tohtml {                                           # {{{
+    my $s=shift;
+    #UTF
+    # Graves
+    $s =~ s/à/\&agrave;/g;
+    $s =~ s/è/\&eacute;/g;
+    $s =~ s/ì/\&igrave;/g;
+    $s =~ s/ò/\&ograve;/g;
+    $s =~ s/ù/\&ugrave;/g;
+    $s =~ s/À/\&Agrave;/g;
+    $s =~ s/È/\&Eacute;/g;
+    $s =~ s/Ì/\&Igrave;/g;
+    $s =~ s/Ò/\&Ograve;/g;
+    $s =~ s/Ù/\&Ugrave;/g;
+
+    # Acutes
+    $s =~ s/á/\&aacute;/g;
+    $s =~ s/é/\&eacute;/g;
+    $s =~ s/í/\&iacute;/g;
+    $s =~ s/ó/\&oacute;/g;
+    $s =~ s/ú/\&uacute;/g;
+    $s =~ s/Á/\&Aacute;/g;
+    $s =~ s/É/\&Eacute;/g;
+    $s =~ s/Í/\&Iacute;/g;
+    $s =~ s/Ó/\&Oacute;/g;
+    $s =~ s/Ú/\&Uacute;/g;
+
+    # Umlaut
+    $s =~ s/ä/\&auml;/g;
+    $s =~ s/ë/\&euml;/g;
+    $s =~ s/ï/\&iuml;/g;
+    $s =~ s/ö/\&ouml;/g;
+    $s =~ s/ü/\&uuml;/g;
+    $s =~ s/Ä/\&Auml;/g;
+    $s =~ s/Ë/\&Euml;/g;
+    $s =~ s/Ï/\&Iuml;/g;
+    $s =~ s/Ö/\&Ouml;/g;
+    $s =~ s/Ü/\&Uuml;/g;
+
+    # Circumflex
+    $s =~ s/â/\&acirc;/g;
+    $s =~ s/ê/\&ecirc;/g;
+    $s =~ s/î/\&icirc;/g;
+    $s =~ s/ô/\&ocirc;/g;
+    $s =~ s/û/\&ucirc;/g;
+    $s =~ s/Â/\&Acirc;/g;
+    $s =~ s/Ê/\&Ecirc;/g;
+    $s =~ s/Î/\&Icirc;/g;
+    $s =~ s/Ô/\&Ocirc;/g;
+    $s =~ s/Û/\&Ucirc;/g;
+
+    # Tilde
+    $s =~ s/ã/\&atilde;/g;
+    $s =~ s/õ/\&otilde;/g;
+    $s =~ s/Ã/\&Atilde;/g;
+    $s =~ s/Õ/\&Otilde;/g;
+
+    # Spanish et al
+    $s =~ s/ñ/\&ntilde;/g;
+    $s =~ s/Ñ/\&Ntilde;/g;
+    $s =~ s/¿/\&iquest;/g;
+    $s =~ s/¡/\&iexcl;/g;
+    $s =~ s/ç/\&ccedil;/g;
+    $s =~ s/Ç/\&Ccedil;/g;
+    $s =~ s/€/\&euro/g;
+    $s =~ s/º/\&ordm;/g;
+    $s =~ s/ª/\&ordf;/g;
+
+    # LATIN1
+    # Graves
+    $s =~ s/\xe0/\&agrave;/g;
+    $s =~ s/\xe8/\&eacute;/g;
+    $s =~ s/\xec/\&igrave;/g;
+    $s =~ s/\xf2/\&ograve;/g;
+    $s =~ s/\xf9/\&ugrave;/g;
+    $s =~ s/\xc0/\&Agrave;/g;
+    $s =~ s/\xc8/\&Eacute;/g;
+    $s =~ s/\xcc/\&Igrave;/g;
+    $s =~ s/\xd2/\&Ograve;/g;
+    $s =~ s/\xd9/\&Ugrave;/g;
+
+    # Acutes
+    $s =~ s/\xe1/\&aacute;/g;
+    $s =~ s/\xe9/\&eacute;/g;
+    $s =~ s/\xed/\&iacute;/g;
+    $s =~ s/\xf3/\&oacute;/g;
+    $s =~ s/\xfa/\&uacute;/g;
+    $s =~ s/\xc1/\&Aacute;/g;
+    $s =~ s/\xc9/\&Eacute;/g;
+    $s =~ s/\xcd/\&Iacute;/g;
+    $s =~ s/\xd3/\&Oacute;/g;
+    $s =~ s/\xda/\&Uacute;/g;
+
+    # Umlaut
+    $s =~ s/\xe4/\&auml;/g;
+    $s =~ s/\xeb/\&euml;/g;
+    $s =~ s/\xef/\&iuml;/g;
+    $s =~ s/\xf6/\&ouml;/g;
+    $s =~ s/\xfc/\&uuml;/g;
+    $s =~ s/\xc4/\&Auml;/g;
+    $s =~ s/\xcb/\&Euml;/g;
+    $s =~ s/\xcf/\&Iuml;/g;
+    $s =~ s/\xd6/\&Ouml;/g;
+    $s =~ s/\xdc/\&Uuml;/g;
+
+    # Circumflex
+    $s =~ s/\xe2/\&acirc;/g;
+    $s =~ s/\xea/\&ecirc;/g;
+    $s =~ s/\xee/\&icirc;/g;
+    $s =~ s/\xf4/\&ocirc;/g;
+    $s =~ s/\xfb/\&ucirc;/g;
+    $s =~ s/\xc2/\&Acirc;/g;
+    $s =~ s/\xca/\&Ecirc;/g;
+    $s =~ s/\xce/\&Icirc;/g;
+    $s =~ s/\xd4/\&Ocirc;/g;
+    $s =~ s/\xdb/\&Ucirc;/g;
+
+    # Tilde
+    $s =~ s/\xe3/\&atilde;/g;
+    $s =~ s/\xf5/\&otilde;/g;
+    $s =~ s/\xc3/\&Atilde;/g;
+    $s =~ s/\xd5/\&Otilde;/g;
+
+    # Spanish et al
+    $s =~ s/\xf1/\&ntilde;/g;
+    $s =~ s/\xd1/\&Ntilde;/g;
+    $s =~ s/\xbf/\&iquest;/g;
+    $s =~ s/\xa1/\&iexcl;/g;
+    $s =~ s/\xe7/\&ccedil;/g;
+    $s =~ s/\xc7/\&Ccedil;/g;
+    $s =~ s/\xbf/\&euro/g;
+    return $s;
+}
+
+# }}}

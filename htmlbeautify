@@ -1,0 +1,186 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<htmlbeautify> - Mejora la legibilidad de los html
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item htmlbeautify [-h|--help|-u|-V|--version]
+
+=item htmlbeautify [-v] F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Mejora la legibilidad de los html. Se pasan a mayúsculas ciertas
+palabras clave, mientras otras se pasan a minúscula.
+
+Este script es un filtro. A falta de un nombre de fichero que tomar como
+entrada, lee de la entrada estándar. Siempre escribe el resultado en la
+salida estándar.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2015 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my %opt;
+
+# }}}
+# {{{ Parametros
+getopts('huvV', \%opt) or usage('Fallo parámetros');
+help()              if $opt{h};
+usage()             if $opt{u};
+if ($opt{V}){version();exit 1;}
+warn "Args=@ARGV\n" if $opt{v};
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+while (<>) {
+    # {{{ Eliminamos fin de linea UNIX o DOS para homogeneizar luego --
+    s/\r*\n$//;
+
+    # }}}
+    # {{{ Separamos en varias lineas
+    #----------------------------------------------------------+
+    # Separamos en varias línas aquellas que contienen         |
+    # varios tags. Ej:  <br><table><thead> se pasa a 3 lineas  |
+    #----------------------------------------------------------+
+    my $e = '';
+    if (/^(\s+)/) {
+        $e = $1;
+    }
+    if (! />\<\/a>/i and
+        ! />\<\/script>/i and
+        ! /\<li[ >].*\<\/li>/i and
+        ! /\<td[ >].*\<\/td>/i and
+        ! /\<th[ >].*\<\/th>/i
+        ){
+        s/>\</>\n$e</gi;
+    }
+
+    # }}}
+    # {{{ Pasar a mayuscula
+    s/(\<\/?TMPL_\w+)/\U$1/gi;
+
+    # }}}
+    # {{{ Pasar a minuscula
+    for my $i (qw/
+        ACTION           ALIGN            ALT              BGCOLOR
+        BORDER           BORDERCOLOR      BORDERCOLORDARK  BORDERCOLORLIGHT
+        CLASS            CODE             COLOR            COLS
+        COLSPAN          CONTENT          ENCTYPE          HEIGHT
+        HREF             HTTP-EQUIV       MEDIA            METHOD
+        NAME             ONCLICK          ONLOAD           ONSUBMIT         REL
+        ROWS             ROWSPAN          SIZE             SRC
+        STYLE            TABINDEX         TITLE            TYPE
+        USEMAP           VALIGN           VALUE            VLINK
+        WIDTH
+        /) {
+        s/($i=)/\L$1/gi;
+    }
+
+    # }}}
+    # {{{ Pasar a minuscula
+    for my $i (qw/
+        article  big      body     bold     br       button   caption  center
+        div      em       fieldset font     footer   form     h1       h2
+        h3       h4       h5       head     hr       html     img      input
+        label    legend   li       link     map      option   meta     pre
+        samp     script   section  select   small    span     strong   style
+        table    tbody    td       textarea th       thead    title    tr
+        ul
+        /) {
+        s/(\<\/?$i)/\L$1/gi;
+    }
+    s/\<A /<a /gi;
+    s/\<\/A\>/<\/a\>/gi;
+    s/\<B\>/<a\>/gi;
+    s/\<\/B\>/<\/b\>/gi;
+    s/<br>/<br \/>/gi;
+
+    # }}}
+    # {{{ Eliminar comillas innecesarias
+    s/ (align|color|type)='?(\w+)'?/ $1="$2"/g;
+    s/ (bordercolorlight|bordercolordark)='?(\w+)'?/ $1="$2"/g;
+    s/ (tabindex|cols|rows|size|border|span)=["'](\d+)["']/ $1=$2/g;
+    s/ (width)=["'](\d+)(%|px|em)["']/ $1=$2$3/g;
+    s/ (color|bordercolorlight|bordercolordark)=["'](\#[\dA-H]+)["']/ $1=$2/gi;
+    s/ (name|id)=["']([\w\d]+)["']/ $1=$2/g;
+
+    # }}}
+    # {{{ Done
+    print;
+    print "\n";
+    # }}}
+}
+exit 0;

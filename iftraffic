@@ -1,0 +1,163 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<iftraffic> - Bandwidth monitoring
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<command> (-h|--help|-u|-V|--version)
+
+=item B<command> [-v] [-t] F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Da información del volumen en Mbits/sec del tráfico de Entrada+Salida en un
+dispositivo de red.
+
+El único parámetro es el nombre de B<dispositivo> a comprobar: F<eth0>, F<lo>,
+F<enp3s0>, etc.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h|--help> Help. Muestra la información de ayuda completa.
+
+=item B<-t> Test mode. No ejecuta. Solo muestra lo que se haría.
+
+=item B<-u> Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v> Verbose. Muestra información detallada durante la ejecución.
+
+=item B<-V|--version> Version. Muestra la versión del comando y los módulos
+usados.
+
+=back
+
+=head1 TO DO
+
+=over 4
+
+=item * Programar la gestión de opciones.
+
+=item * Valor máximo.
+
+=item * Tiempo entre lecturas por opción.
+
+=item * Valores separados input, output, total.
+
+=item * Valor máximo del periodo.
+
+=back
+
+=head1 SAMPLE INPUT DATA
+
+    Inter-  |   Receive                                  #  Transmit
+    face    |bytes       packets   errs drop fifo frame compressed multicast |bytes       packets   errs drop fifo colls carrier compressed
+    enp3s0: 206353355547 181645825 0    2232 0    0     0          2473783   126719331934 184072563 0    0    0    0     0       0
+    lo:     92054204     695195    0    0    0    0     0          0         92054204     695195    0    0    0    0     0       0
+
+=head1 SEE ALSO
+
+B<ibmonitor>, B<sar>
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright (c) 2017 Luis M. Arocha Hernández <lah.data@gmail.com>.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a su autor original y
+de acuerdo con los términos de la licencia GPL. (GNU General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{
+# Variables
+$|++;
+my $PROCNET = '/proc/dev/net';
+my @m1;
+my @m2;
+my $sum;
+my $mbits;
+my @rates;
+my $kbs;
+my @init;
+my $seconds=0;
+my $lapse=60;
+my $verbose=1;
+
+# }}}
+# {{{
+# Parametros
+my $dev= $ARGV[0]||'eth0';
+# }}}
+# {{{
+# Check if can run
+if (! -f $PROCNET){
+    die "Does not exist $PROCNET. Can't run. Dying.\n";
+}
+# }}}
+# {{{
+# Set signal for Control-C
+$SIG{'INT'} = \&average;
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# measure, show and wait.
+@m1   = get_measures();
+@init = @m1;
+while (1) {
+    sleep $lapse;
+    $seconds++;
+    @m2    = get_measures();
+    @rates = ($m2[0]-$m1[0], $m2[1]-$m1[1]);
+    $sum   = ($rates[0]+$rates[1])/$lapse;
+    $mbits = ($sum * 8)/1024/1024;
+    $kbs   = $sum / 1024;
+    @m1    = @m2;
+    print "\r";
+    printf "Traffic: %6.2f Mbps, %6.2f KBps   ", $mbits, $kbs;
+}
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub get_measures {
+    my $data = `cat $PROCNET | grep "$dev" | head -n1`;
+    $data =~ /$dev\: *(\d+)\D+\d+\D+\d+\D+\d+\D+\d+\D+\d+\D+\d+\D+\d+\D+(\d+)\D+/;
+    print "\n$1, $2\n" if $verbose;
+    return ($1, $2);
+}
+# }}}
+# {{{
+sub average {
+    print "\n";
+    @rates = ($m2[0]-$init[0], $m2[1]-$init[1]);
+    $sum   = ($rates[0]+$rates[1])/($seconds*$lapse);
+    $mbits = ($sum * 8)/1024/1024;
+    $kbs   = $sum/1024;
+    printf "Average Traffic: %6.2f Mbps, %6.2f KBps\n", $mbits, $kbs;
+    exit
+};
+# }}}

@@ -1,0 +1,139 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<unir> - Concatena todos los ficheros de entrada con una separación entre ellos
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item unir [-h|--help|-u|-V|--version]
+
+=item unir [-v] [-r] F<FILE>...
+
+=back
+
+=head1 DESCRIPTION
+
+Concatena todos los ficheros de entrada. Al comienzo de cada uno de ellos añade
+una línea de separación con el nombre del fichero.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Help. Muestra la información de ayuda completa.
+
+=item B<-r>
+
+Reverse. Separa un fichero de texto, creado con el comando
+C<unir> en sus ficheros originales.
+
+=item B<-u>
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Verbose. Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Version. Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al
+autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my %opt;                 # Options hash
+
+# }}}
+# {{{ Parametros
+getopts( "hruvV", \%opt ) or usage("Fallo parámetros");
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Reverse
+if ( $opt{r} ) {
+    my $name = '';
+    while (<>) {
+        if (/^================= (.+) ==================$/) {
+            close FILE if ($name);
+            $name = $1;
+            print "Grabando $name\n" if $opt{v};
+            open FILE, '>', $name or die "$name. $!\n";
+            next;
+        }
+        die "No es un fichero apropiado\n" unless $name;
+        print FILE;
+    }
+    close FILE;
+    exit 0;
+}
+
+# }}}
+# {{{
+# Union normal
+foreach my $f (@ARGV) {
+    print "================= $f ==================\n";
+    next unless -f $f;
+    open FILE, $f or die "$f. $!\n";
+    while (<FILE>) {
+        print;
+    }
+    close FILE;
+    print "\n";
+}
+exit 0;
+# }}}

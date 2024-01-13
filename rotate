@@ -1,0 +1,141 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<rotate> - Rotado de ficheros, asignando numero y comprimiendo
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item rotate [-h|--help|-u|-V|--version]
+
+=item rotate [-v] [-q] F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+a .1 y renumera los siguientes a .2, .3, etc. Hasta 9.
+
+Los ficheros ya rotados se comprimen con gzip y se renombran a
+FILE.n.gz
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-q>
+
+Para evitar la generación de mensajes informativos.
+
+=item B<-u>
+
+Muestra la información de ayuda abreviada (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No funciona fino con ficheros que ya están comprimidos con gzip... Los vuelve a
+intentar comprimir. Y los ficheros que tienen tamaño 0 también los comprime, con
+lo que acaban teniendo tamaño 30.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2010 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.2 $, 10;
+
+# }}}
+# {{{ Variables
+my $n;
+my %opt;
+my $file;
+
+# }}}
+# {{{ Parametros
+getopts( 'hquvV', \%opt ) or usage('Fallo parametros');
+help()              if $opt{h};
+usage()             if $opt{u};
+if ($opt{V}){version();exit 1;}
+warn "Args=@ARGV\n" if $opt{v};
+usage('Fallo parametros') unless @ARGV;
+$file = shift;
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Check if exist
+if ( ! -f $file ) {
+    warn "El fichero $file no existe\n";
+    exit 1;
+}
+
+# }}}
+# {{{
+# Rotar los ficheros
+for ( $n = 8; $n >= 1; $n-- ) {
+    my $p = $n + 1;
+    if ( -f "$file.$n" ) {
+        print "Moviendo $file.$n a $file.$p\n" if $opt{v};
+        system "mv $file.$n $file.$p";
+    }
+    if ( -f "$file.$n.gz" ) {
+        print "Moviendo $file.$n.gz a $file.$p.gz\n" if $opt{v};
+        system "mv $file.$n.gz $file.$p.gz";
+    }
+}
+print "Renombrando $file a $file.1\n" if $opt{v};
+system "cp  $file $file.1";
+print "Comprimiendo\n" if $opt{v};
+system "gzip $file.1";
+system "> $file";
+print "Rotated $file\n" unless $opt{q};
+exit 0;
+
+# }}}

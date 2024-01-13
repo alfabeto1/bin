@@ -1,0 +1,198 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+
+=head1 NAME
+
+MultiMarkdown.pl aka multim - Convert MultiMarkdown syntax to (X)HTML
+
+=head1 DESCRIPTION
+
+This program is distributed as part of Perl's Text::MultiMarkdown module,
+illustrating sample usage.
+
+MultiMarkdown.pl can be invoked on any file containing MultiMarkdown-syntax, and
+will produce the corresponding (X)HTML on STDOUT:
+
+    $ cat file.txt
+    [MultiMarkdown][] *extends* the very well-known [Markdown][] syntax.
+
+    [MultiMarkdown]: http://fletcherpenney.net/What_is_MultiMarkdown
+    [Markdown]: http://daringfireball.net/projects/markdown/
+
+    $ multimarkdown file.txt
+    <p><a href="http://fletcherpenney.net/What_is_MultiMarkdown">MultiMarkdown</a> <em>extends</em> the very well-known <a href="http://daringfireball.net/projects/markdown/">Markdown</a> syntax.</p>
+
+If no file is specified, it will expect its input from STDIN:
+
+    $ echo "A **simple** test" | multimarkdown
+    <p>A <strong>simple</strong> test</p>
+
+Cambios por LAH:
+    __ Underline <u>
+    ~~ Strike <s>
+    @@ Mark   <mark>
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<multim> [--usage | -u]
+
+=item B<multim> [--help | -h ]
+
+=item B<multim> [--version | -v]
+
+=item B<multim> [--shortversion]
+
+=item B<multim> [--htmltags] [FILE]
+
+=back
+
+=head1 OPTIONS
+
+=over
+
+=item version | V
+
+Shows the full information for this version
+
+=item shortversion
+
+Shows only the version number
+
+=item html4tags
+
+Produce HTML 4-style tags instead of XHTML - XHTML requires elements
+that do not wrap a block (i.e. the C<hr> tag) to state they will not
+be closed, by closing with C</E<gt>>. HTML 4-style will plainly output
+the tag as it comes:
+
+    $ echo '---' | multimarkdown
+    <hr />
+    $ echo '---' | multimarkdown --html4tags
+    <hr>
+
+=item usage | u
+
+Shows options.
+
+=item help | h
+
+Shows this documentation
+
+=back
+
+=head1 AUTHOR
+
+Copyright 2004 John Gruber
+
+Copyright 2006 Fletcher Penny
+
+Copyright 2008 Tomas Doran
+
+The manpage was written by Gunnar Wolf <gwolf@debian.org> for its use
+in Debian systems, but can be freely used elsewhere.
+
+For full licensing information, please refer to
+Text::MultiMarkdown.pm's full documentation.
+
+=head1 SEE ALSO
+
+L<Text::MultiMarkdown>, L<http://fletcherpenney.net/What_is_MultiMarkdown>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use warnings;
+use Text::MultiMarkdown qw(markdown);
+use Getopt::Long;
+
+# }}}
+# {{{ Variables
+my %cli_opts;
+my $m;
+
+# }}}
+# {{{ Parametros
+Getopt::Long::Configure('pass_through');
+GetOptions(\%cli_opts,
+    'version|V',
+    'shortversion',
+    'html4tags',
+    'usage|u',
+    'help|h'
+);
+if ($cli_opts{'version'}) {     # Version info
+    print "\nThis is MultiMarkdown, version $Text::MultiMarkdown::VERSION.\n";
+    print "Copyright 2004 John Gruber\n";
+    print "Copyright 2006 Fletcher Penny\n";
+    print "Copyright 2008 Tomas Doran\n";
+    print "Parts contributed by several other people.";
+    print "http://fletcherpenney.net/MultiMarkdown/\n\n";
+    exit 0;
+}
+if ($cli_opts{'shortversion'}) {        # Just the version number string.
+    print $Text::MultiMarkdown::VERSION;
+    print "\n";
+    exit 0;
+}
+if ($cli_opts{'help'}) {
+    exec "pod2text -c $0|latutf";
+}
+if ($cli_opts{'usage'}) {
+    my $t = shift;
+    warn "$t\n" if $t;
+    my $r = `pod2text -h`;
+    if ($r =~  /utf8/){
+        system "pod2usage -verbose 1 $0";
+    } else {
+        system "pod2usage -verbose 1 $0|latutf";
+    }
+    exit 1;
+}
+if ($cli_opts{'html4tags'}) {           # Use HTML tag style instead of XHTML
+    $m = Text::MultiMarkdown->new(empty_element_suffix => '>');
+} else {
+    $m = Text::MultiMarkdown->new;
+}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+print main(@ARGV) unless caller();
+exit 0;
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub main {
+    my (@fns) = @_;
+    my $f;
+    if (scalar @fns) {
+        foreach my $fn (@fns) {
+            die("Cannot find file $fn") unless (-r $fn);
+            my $fh;
+            open($fh, '<', $fn) or die;
+            $f = join('', <$fh>);
+            close($fh) or die;
+        }
+    } else { # STDIN
+        local $/;               # Slurp the whole file
+        $f = <>;
+    }
+    return $m->markdown($f);
+}
+
+# }}}

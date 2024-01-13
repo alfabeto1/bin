@@ -1,0 +1,146 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<cuentadir> - Cuenta ficheros por directorio
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item cuentadir [-h|--help|-u|-V|--version]
+
+=item cuentadir [-v] [-n]
+
+=back
+
+=head1 DESCRIPTION
+
+Saca un recuento de los ficheros existentes en cada directorio.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Help. Muestra la información de ayuda completa.
+
+=item B<-n>
+
+Nojunk. En el recuento no se tienen en cuenta ficheros terminados en F<~>,
+F<jpg> o F<html> ni tampoco los llamados F<.nonames>, F<atributos.txt> o
+F<.thumbs>.
+
+=item B<-u>
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Verbose. Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Version. Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+use utf8;
+binmode STDOUT,'utf8:';
+use Encode;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my $dirant = '';
+my $current;
+my %dir;
+my %opt;
+
+# }}}
+# {{{ Parametros
+getopts( 'hnuvV', \%opt ) or usage('Fallo parámetros');
+help()              if $opt{h};
+usage()             if $opt{u};
+if ($opt{V}){version();exit 1;}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+open FILE, "find @ARGV |" or die;
+while (<FILE>) {
+    print if $opt{v};
+    chop;
+    if ($opt{n}) {
+        next if /\.thumbs/;
+        next if /~$/;
+        next if /atributos.txt/;
+        next if /.nonames/;
+        next if /\.jpg$/;
+        next if /.html$/;
+    }
+    if (-d) {
+        $dir{$_} = 0;
+        next;
+    } else {
+        if (/(.*)\/(.*)/){
+            $current = $1;
+            $dir{$current}++;
+        }
+    }
+}
+close FILE;
+
+# }}}
+# {{{ Mostrar resultados
+foreach $current ( sort keys %dir ) {
+    printf "%-25s %5d\n", decode_utf8($current), $dir{$current};
+}
+exit 0;
+
+# }}}

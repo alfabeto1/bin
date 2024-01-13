@@ -1,0 +1,142 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<ajuste> - Para bajar un nivel los ebooks
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item ajuste [-h|--help|-u|-V|--version]
+
+=item ajuste [-v] [-a]
+
+=item ajuste | sh
+
+=back
+
+=head1 DESCRIPTION
+
+Genera en la salida estandar el conjunto de comandos C<mv> para bajar un
+directorio los ebooks existentes a partir del directorio actual.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-a>
+
+Procesa todos los ficheros, no solo los ebooks.
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my $pwd = `pwd`;
+chomp $pwd;
+my $f;
+my %opt;
+
+# }}}
+# {{{ Parametros
+getopts( 'ahuvV', \%opt ) or usage('Fallo parametros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+opendir DIR, "." or die $!;
+while ( $f = readdir(DIR) ) {
+    next unless -d $f;
+    next if $f eq '.';
+    next if $f eq '..';
+    procesa($f);
+}
+closedir DIR;
+exit;
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub procesa {
+    my $f = shift;
+    my $f1;
+    print "#Procesando $f\n" if $opt{v};
+    opendir DIR1, $f or die $!;
+    while ( $f1 = readdir(DIR1) ) {
+        next unless -f "$f/$f1";
+        print "#   $f/$f1\n" if $opt{v};
+        if ( $opt{a} or
+            $f1 =~ /\.(pdf|rtf|mobi|prc|doc|fb2|lrf|epub|azw|lit)$/i ) {
+            print "mv $pwd/$f/$f1 $pwd\n";
+        }
+    }
+    closedir DIR1;
+}
+# }}}

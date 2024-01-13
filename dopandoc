@@ -1,0 +1,24 @@
+#!/bin/bash
+### convertidor de pandoc a html5
+temp=/tmp/dopandoc-temp.md
+input=$1
+output=${input//md/html}
+title=$1
+title=${title//_/ }
+title=${title%.md}
+title=${title##*/}
+prepandoc "$1" >$temp
+
+extensions=$(head -n 10 $temp|grep extensions:)
+if [[ "$extensions" ]]; then
+    extensions=$(echo $extensions|sed -e 's/extensions: *//')
+    extensions="+$extensions"
+fi
+pandoc --quiet -s -f markdown$extensions -t html5 --metadata title="$title" $temp -o $output
+rm $temp
+
+# commonmark
+# gfm
+# markdown
+# markdown_mmd
+

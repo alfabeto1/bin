@@ -1,0 +1,6 @@
+#!/bin/sh
+### Crea una imagen montaje de las que hay en el directorio
+FILES="$(dir -1 *.jpg|sort -R|grep -v montaje.jpg|head -n 28)"
+montage -tile 7x4 -geometry 270x270\
+    $FILES \
+    montaje.jpg

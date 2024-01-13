@@ -1,0 +1,171 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+B<pvtar> - Create compressed file from directory using pv to monitor process
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<pvtar> [-h|--help|-u|-V|--version]
+
+=item B<pvtar> [-v] [-J|-z] DIR
+
+=back
+
+=head1 DESCRIPTION
+
+Create compressed file from directory using pv to monitor process.
+
+Beware of directory names with spaces.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-J>
+
+Comprime con xz. Compresión más lenta.
+
+=item B<-u>
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Verbose. Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando.
+
+=item B<-z>
+
+Comprime con gzip. Compresión habitual. 
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al
+autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2018 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>.
+
+=cut
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+function help {
+    pod2text -c $0
+    exit 1
+}
+# }}}
+# {{{
+function usage {
+    if test "$*"; then
+        echo $*
+    fi
+    pod2usage -verbose 1 $0
+    exit 1
+}
+# }}}
+# {{{
+function version {
+    echo "${0/*\//} - $VERSION"
+    exit 1
+}
+# }}}
+# {{{
+function dolog {
+    echo [$(date +%H:%M:%S)] $*
+}
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Variables
+VERSION="$Revision: 3.4 $"
+VERSION=${VERSION#:\ }
+VERSION=${VERSION%\ \$}
+extension=tar
+option=''
+
+# }}}
+# {{{ Parametros
+while getopts huvJVz-: options; do
+    case "$options" in
+        h) help;;
+        u) usage ;;
+        v) verbose=on ;;
+        V) version;;
+        J) extension=txz;option='-J' ;;
+        z) extension=tgz;option='-z' ;;
+       \?) usage "Fallo parámetros" ;;
+        -) if [ "$OPTARG" == "version" -o "$OPTARG" == "help" ]; then
+               $OPTARG;
+           else
+               usage "Fallo parámetros"
+           fi;;
+    esac
+done
+shift $(( $OPTIND - 1 ))
+F=$1                                          # Directorio a comprimir
+if [[ "$F" == "" ]]; then
+    usage "Falta el directorio a comprimir"
+    exit 1
+fi
+
+# }}}
+# {{{
+# Check
+command -v pv >/dev/null 2>&1 || \
+    { echo >&2 "Required pv but it's not installed.  Aborting."; exit 1;  }
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Main
+F=${F%/}                                       # Remove slash
+FILES=$(find $F/ |wc -l)                        # recuento de ficheros
+OUT=$F.$extension                               # fichero comprimido
+if [[ $verbose ]]; then
+    echo Creando $OUT con $FILES ficheros
+    echo "tar $option -cvhf $OUT $F/|pv -ls $FILES >/dev/null"
+fi
+tar $option -cvhf $OUT $F/|pv -ls $FILES >/dev/null
+dolog Done
+exit 0
+
+# }}}

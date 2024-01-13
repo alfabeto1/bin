@@ -1,0 +1,12 @@
+#!/bin/sh
+### Download known dangerous IPs from SPAMHAUS and DSHIELD
+wget -qO - https://www.spamhaus.org/drop/edrop.txt|grep -v '^;'|sed -e 's/ .*//' >/tmp/banned-spamhaus
+wget -qO - http://dshield.org/block.txt|grep -v ^#|grep -v ^Start| awk  '{print $1"/"$3}' >/tmp/banned-dshield
+
+if test -s /tmp/banned-spamhaus; then
+    mv -b /tmp/banned-spamhaus /etc/banned-spamhaus
+fi
+if test -s /tmp/banned-dshield; then
+    mv -b /tmp/banned-dshield /etc/banned-dshield
+fi
+rm -f /tmp/banned-spamhaus /tmp/banned-dshield

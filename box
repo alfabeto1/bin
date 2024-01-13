@@ -1,0 +1,362 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<box> - Comenta un trozo de código, haciendo caja alrededor.
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item box [-h|--help|-u|-V|--version]
+
+=item box [-f FILETYPE] [-t NUM] [-w NUM][F<FILE>]
+
+=item box [-f FILETYPE] [-r] [F<FILE>]
+
+=back
+
+=head1 DESCRIPTION
+
+Comenta un trozo de código, elaborando una caja con C<#>, C<-> y C<+>,
+alrededor. Mediante parámetro se puede omitir la caja, con lo que sólo
+pone C<#> en la columna 1.
+
+Es posible hacer un comentario de una sóla línea, con el tipo B<l>. Como
+este:
+
+   # comentario
+
+=head1 OPTIONS
+
+=over 4
+
+=item -h, --help
+
+Muestra la información de ayuda completa.
+
+=item -r
+
+Elimina la caja alrededor del texto. TO DO.
+
+=item -f FILETYpE (string)
+
+Tipo de fichero, para identifcar el tipo de comentario que le corresponde.
+Se espera tipo de fichero según es detectado por vim.
+
+DEFAULT: shell
+
+=item -t TIPO (string)
+
+Tipo de caja a realizar. Si no se indica ningún tipo se hace una caja
+simple, con guiones.
+
+=over 4
+
+=item * I<1> No hace una caja, solo pone # en la columna 1.
+
+=item * I<d> Usa lineas dobles (caracter C<=>) en vez de simples.
+
+=item * I<l> Crea un comentario de una línea.
+
+=item * I<otro> Crea una caja con la letra que se indique.
+
+=back
+
+=item -u
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item -V, --version
+
+Muestra la versión del comando y los módulos usados.
+
+=item -w NUM (integer)
+
+Longitud de la linea.
+
+DEFAULT: 80
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo
+a su autor original y de acuerdo con los términos de la licencia GPL. (GNU
+General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.3 $, 10;
+
+# }}}
+# {{{ Variables
+my $sr       = '#';
+my $m        = '-';
+my $e        = '|';
+my $e1       = '+';
+my $width    = 80;
+my $len      = $width-20; # Plus 2 at start+2 at end. Caja simple
+my @lines;
+my %opt;
+my $er       = '\|';
+my $e1r      = '\+';
+my $linechar = '-'; # For separator comment line. may be - or _
+
+# }}}
+# {{{ Parametros
+getopts( 'f:hl:mrst:uw:V', \%opt ) or usage('Fallo parametros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+if ($opt{m}){
+    $linechar='_';
+}
+if ($opt{r} and $opt{t}){
+    usage ('Las opciones -r y -t son incompatibles');
+}
+if ($opt{w}){
+    usage unless $opt{w} =~ /^\d+$/;
+    $width    = $opt{w};
+    $len      = $width-20; # Plus 2 at start+2 at end. Caja simple
+}
+if ($opt{t} eq 'd'){
+    $m     = '=';
+    $e1    = '#';
+    $e1r   = '#';
+    $e     = '#';
+    $len   = $width-4; # Plus 2 at start+2 at end.
+} elsif ($opt{t} eq 'l'){
+    $e     = $e1 = $er = $e1r = '';
+    $len   = $width;
+} elsif ($opt{t} eq 'f'){
+    $e     = $e1 = $er = $e1r = '';
+    $len   = $width-9;
+} elsif ($opt{t} eq '1'){
+    $e     = $e1 = $er = $e1r = '';
+} elsif ($opt{t}){
+    $e     = $e1 = $m = substr($opt{t},0,1);
+    $len   = $width-4; # Plus 2 at start+2 at end.
+}
+if ($opt{f} eq 'vim'){
+    $sr = '"';
+} elsif ($opt{f} eq 'js' or $opt{f} eq 'javascript' or $opt{f} eq 'psl'){
+    $sr = '//';
+} elsif ($opt{f} =~ /html/){
+    $sr = '<!--';
+    $e  = $e1 = $er = $e1r= '-->';
+} elsif ($opt{f} eq 'css'){
+    $sr = '/*';
+    $e  = $e1 = $er = $e1r= '*/';
+}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Rellenar con espacios
+if ($opt{s}){
+    while (<>) {
+        chomp;
+        my $l = largo($_);
+        print $_;
+        print ' 'x($width-$l) if $l<$width;
+        print "\n";
+    }
+    exit 0;
+}
+# }}}
+# {{{ Leer lineas de entrada
+while (<>) {
+    s/\r?\n$//;
+    push @lines, $_;
+}
+# }}}
+# {{{ Crear un fold
+if ($opt{t} eq 'f') {
+    my $open = $sr.' '.'{'x3 ;
+    if ($e){
+        $open .= ' ' . $e;
+    }
+    my $close = $sr.' '.'}'x3 ;
+    if ($e){
+        $close .= ' ' . $e;
+    }
+    my $s='';
+    while (@lines and $lines[0] eq ''){
+        shift @lines;
+    }
+    if (length($lines[0])){
+        $lines[0]=~/^(\s+)/;
+        $s=$1;
+    }
+    print "$s$open\n";
+    foreach (@lines){
+        print;
+        print "\n";
+    }
+    print "$s$close\n";
+    exit 0;
+}
+
+# }}}
+# {{{ Limpiar y obtener tamaño maximo e indentacion
+my @lines2;
+my $first='';
+$lines[0] =~ /^( *)/;
+$first = $1 if $1;
+my $indent = length($first);
+foreach my $i ( 0 .. $#lines ) {
+    $lines[$i] =~ s/^$first// if length($first);
+    my $srr=$sr;
+    my $err=$er;
+    my $e1rr=$e1r;
+    $srr=~ s/\*/\\\*/;
+    $err=~ s/\*/\\\*/;
+    $e1rr=~ s/\*/\\\*/;
+    if ( ($i == 0 or $i == $#lines) and
+        length($er) and length($e1r)){
+        if ($lines[$i] =~ /^($srr|\#)[\-=]+(\+|\#|$err|$e1rr)?$/ ) {
+            next;
+        } elsif ($lines[$i] =~ /^$sr[\-=]+$/ ) {
+            next;
+        }
+    }
+    $lines[$i] =~ s/^$srr //;
+    $lines[$i] =~ s/\|$//;
+    $lines[$i] =~ s/\+$//;
+    $lines[$i] =~ s/\#$//;
+    $lines[$i] =~ s/^#//;
+    $lines[$i] =~ s/$err$//;
+    $lines[$i] =~ s/$e1rr$//;
+    $lines[$i] =~ s/\/\/$//;
+    $lines[$i] =~ s/-+$//;
+    $lines[$i] =~ s/_+$//;
+    $lines[$i] =~ s/ +$//;
+    $lines[$i] = $first . $lines[$i];
+    my $l = largo( $lines[$i] );
+    if ( $l > $len ) {
+        $len = $l;
+    }
+    push @lines2, $lines[$i];
+}
+
+# }}}
+$sr =~ s/\\\*/\*/;
+$e  =~ s/\\\*/\*/;
+$e1 =~ s/\\\*/\*/;
+$er =~ s/\\\*/\*/;
+$e1r=~ s/\\\*/\*/;
+# {{{ Solo remove
+if ($opt{r}){ # Solo remove TO DO
+    foreach my $i ( 0 .. $#lines2 ) {
+        print $lines2[$i];
+        print "\n";
+    }
+    exit 0;
+}
+
+# }}}
+# {{{ Comentar linea
+if ($opt{t} eq '1') {    # comentar la linea
+    foreach my $i ( 0 .. $#lines2 ) {
+        my $t = $lines2[$i];
+        $t =~ s/^$first//;
+        print "$first$sr $t";
+        if ($e){
+            print " $e";
+        }
+        print "\n";
+    }
+    exit 0;
+}
+
+# }}}
+# {{{ Comentar línea y poner guiones
+if ($opt{t} eq 'l') {
+    foreach my $i ( 0 .. $#lines2 ) {
+        my $t = $lines2[$i];
+        $t =~ s/^$first//;
+        my $esp = $1 ||'';
+        $t = "$first$esp$sr $t";
+        if (largo($t)+1 < $len){
+            $t .= ' ' . (${linechar}x($len-largo($t)-1));
+        }
+        print "$t$e\n";
+    }
+    exit 0;
+}
+
+# }}}
+# {{{ Hacer una caja alrededor
+foreach my $i ( 0 .. $#lines2 ) {
+    $lines2[$i] =~ s/^$first//;
+}
+print $first;
+print "$sr";
+print "$m" x ( $len - $indent -length($sr.$e1)+ 4 );
+print $e1;
+print "\n";
+foreach my $i ( 0 .. $#lines2 ) {
+    print $first;
+    print "$sr ";
+    print $lines2[$i];
+    print ' ' x ( $len -length($sr.$e1)- largo( $lines2[$i] )-$indent + 2 );
+    print " $e\n";
+}
+print $first;
+print "$sr";
+print "$m" x ( $len - $indent -length($sr.$e1)+ 4 );
+print $e1;
+print "\n";
+exit 0;
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub largo {
+    # Función para obtener el numero de letras de una cadena, 
+    # no el numero de bytes
+    my $t = shift;
+    $t=~s/(€|¡|¿|ç|Ç|ñ|Ñ|á|Á|à|À|â|Â|ä|Ä|é|É|è|È|ê|Ê|ë|Ë)/1/g;
+    $t=~s/(í|Í|ì|Ì|î|Î|ï|Ï|ó|Ó|ò|Ò|ô|Ô|ö|Ö|ú|Ú|ù|Ù|û|Û|ü|Ü)/1/g;
+    return length($t);
+}
+# }}}

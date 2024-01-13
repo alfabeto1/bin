@@ -1,0 +1,5 @@
+#!/bin/sh
+### Resize image to 1920x1080, cropping and or scaling if necessary
+mv $1 $1_orig
+convert -resize 1920x -gravity center -crop 1920x1080+0+0 $1_orig $1
+convert -resize x1080 -gravity center -crop 1920x1080+0+0 $1 $1

@@ -1,0 +1,258 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<md5lu> - Genera o actualiza un fichero de control MD5 para encontrar
+duplicados
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item md5lu [-h|--help|-u|-V|--version]
+
+=item md5lu [-v] [-f]
+
+=back
+
+=head1 DESCRIPTION
+
+Genera un fichero F<.md5sums> en el directorio actual que contiene la
+relación de los fichero existentes en el mismo (no todos), y en los
+subdirectorios, junto con su MD5.
+
+Aquellos ficheros que han sido eliminados del disco también son
+eliminados del fichero de control.
+
+Este fichero F<.md5sums> servirá para comprobar la existencia de
+ficheros duplicados, con el otro comando del grupo: C<md5ldup>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-f>
+
+Full. Regenera todos los MD5. No se tienen en cuenta los ya almacenados.
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 TO DO
+
+Modificar para que se genere un nuevo fichero con todos los datos que se
+van obteniendo, y al final sustituir el viejo.
+
+Eliminar la opción de generar ficheros md5sum en subdirectorios. Solo debe
+servir para el directorio actual.
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier
+fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán
+bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software,
+reconociendo a su autor original y de acuerdo con los términos de la
+licencia GPL. (GNU General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+my $COMMAND = 'md5sum';
+my $FILE    = '.md5sums';
+
+# }}}
+# {{{ Variables
+my %opt;
+my @dirs;
+my $isnew=0;
+
+# }}}
+# {{{ Parametros
+getopts( 'fhuvV', \%opt ) or help("Fallo parámetros");
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+@dirs = @ARGV;
+if (!@dirs){
+    push @dirs,'.';
+}
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+foreach my $d(@dirs){
+    next unless -d $d;
+    print "Procesa $d\n" if $opt{v};
+    procesa($d);
+}
+exit 0;
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub procesa {
+    # Variables
+    my $d=shift;
+    my $n       = 0;
+    my %list    = qw//;
+    my %nlist   = qw//;
+    my $changed = 0;
+    $isnew = ! -f $FILE;
+    # Read md5sums file into hash
+    unless ( $opt{f} ) {
+        if ( -e "$d/$FILE" ) {
+            open FILE, "$d/$FILE" or die $!;
+            while (<FILE>) {
+                chop;
+                my ( $md5, $size, $mtime, $name ) = split /;/, $_, 4;
+                $list{$name} = "$md5;$size;$mtime";
+                $n++;
+            }
+            close FILE;
+        }
+        print "$n IN\n";
+    }
+
+    # Create new hash width md5 value, size and mtime for every file.
+    # Knowns and not knowns.
+    # If existing file has same size and mtime do not recalculate md5
+    # value. Take it from old hash.
+    if ($isnew){
+        # Create .md5sums since the beginning to avoid losing data if
+        # interrupt.
+        print "It's new $d/$FILE\n";
+        open FILE, ">", "$d/$FILE" or die $!;
+    }
+    open FILELIST, "find \"$d\" -type f |" or die $!;
+    while (<FILELIST>) {
+        chomp;
+        next if /~$/;
+        next if /'/;
+        next if /\.bak$/;
+        next if /\.config\/chromium/;
+        next if /\.config\/variety/;
+        next if /\.cache/;
+        next if /\.vimundo/;
+        next if /\/Cache\//;
+        next if /\/CVS\//;
+        next if /\.data\//;
+        next if /desktop.ini$/;
+        next if /mozilla\/firefox/;
+        next if /\.html?$/;
+        next if /\.macromedia/;
+        next if /\.md5sums$/;
+        next if /\.old$/;
+        next if /PlayOnLinux/;
+        next if /\.pub\//;
+        next if /\/Temp\//;
+        next if /\.thumbnails/;
+        next if /\.thumbs/;
+        next if /Thumbs.db$/;
+        next if /\/Trash\//i;
+        next if /\.unison.tmp\//;
+        next if /url$/;
+        next if /\.wine\//;
+        next if /\.xvpics\//;
+        my $name = $_;
+        $name=~  s/^$d\///;
+        my ($size,$mtime) = footprint("$d/$name");
+        if (defined $list{$name}) {
+            my ($a, $b,$c) = split /;/, $list{$name};
+            if ($b == $size and
+                $c == $mtime) { # Same footprint
+                $nlist{$name} = $list{$name};
+                next;
+            } else {
+                print "$name Modificado\n" if $opt{v};
+                $changed++;
+            }
+        } else {
+            print "$name Nuevo\n" if $opt{v};
+        }
+        my $md5       = `$COMMAND \"$d/$name\"`;
+        chop $md5;
+        $md5          =~ s/ .*//;
+        $nlist{$name} = "$md5;$size;$mtime";
+        print FILE $nlist{$name} . ";$_\n" if $isnew;
+
+    }
+    close FILELIST;
+    if ($isnew){
+        close FILE;
+    }
+
+    # Save new hash to $FILE
+    if (!$isnew){
+        $n = 0;
+        open FILE, ">", "$d/$FILE" or die $!;
+        foreach ( sort keys %nlist ) {
+            print FILE $nlist{$_} . ";$_\n";
+            $n++;
+        }
+        print "$changed modificados\n" if $opt{v};
+        print "$n OUT\n";
+        close FILE;
+    }
+    return;
+}
+
+# }}}
+# {{{
+sub footprint {
+    my $f = shift || return 0;
+    my @s = stat($f);
+    # Devuelve size y mtime
+    return ($s[7],$s[9]);
+}
+
+# }}}

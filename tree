@@ -1,0 +1,131 @@
+#!/usr/bin/perl
+#==============================================================================+
+# ENVIRONMENT                                                                  |
+#==============================================================================+
+# {{{
+# Modules
+use strict;
+use warnings;
+use Getopt::Long qw(:config no_ignore_case);
+use Pod::Usage;
+# }}}
+# {{{
+# Variables
+my (
+    $showall,   # show hidden files
+    $showfiles, # show also files
+    $showlinks, # show also a symlink's target
+);
+my $indent = '  ';
+my $indir  = '--';
+# }}}
+# {{{
+# Parameters
+help() unless GetOptions(
+    a        => \$showall,
+    l        => \$showlinks,
+    f        => \$showfiles,
+    'h|help' => \&help,
+    'm|man'  => \&man,
+);
+# }}}
+#==============================================================================+
+# MAIN PROCESS                                                                 |
+#==============================================================================+
+foreach my $path (@ARGV ? @ARGV : '.') {
+    print $path,"\n";
+    traverse($path, '');
+}
+#==============================================================================+
+# FUNCTIONS                                                                    |
+#==============================================================================+
+sub help { pod2usage(-verbose=>1); }
+sub man  { pod2usage(-verbose=>2); }
+# {{{
+sub traverse {
+    my ($path, $depth) = @_;
+    # Open the directory
+    opendir my $dh, $path or die "Couldn't read $path: $!\n";
+    # Get all directory content - leaving out files unless asked for
+    my(@content) = grep {
+        not /^\.\.?$/
+            and
+        ( $showfiles or not -f "$path/$_" )
+            and
+        ( $showall or /^[^.]/ )
+    } readdir $dh;
+    closedir $dh;
+
+    my $count= scalar @content;                 # How many items in the directory?
+    my $i= $depth . '|' . $indent;              # Prepare the standard indent
+    # Print all the elements
+    foreach my $sub (sort @content) {
+        my $p= "$path/$sub";
+        # Prepare the last indent
+        $i= $depth . ' ' . $indent unless --$count;
+        print $depth, ($count ? '|' : '\\'), $indir , $sub;
+        # Is it a link?
+        if ( -l $p ) {
+            # Shall they be shown as such
+            if ($showlinks) {
+                print " -> ", readlink $p;
+            }
+            print "\n";
+            next;
+        }
+        print "\n";
+        # Done unless it's a directory
+        next unless -d $p;
+        traverse($p, $i);
+    }
+    return;
+}
+# }}}
+#==============================================================================+
+# POD                                                                          |
+#==============================================================================+
+# {{{
+=head1 NAME
+
+tree - A script to show a "graphical" representation of a directory structure
+
+=head1 SYNOPSIS
+
+tree [options] [path...]
+
+=head1 DESCRIPTION
+
+tree will show a "graphical" representation of a directory structure, 
+including all files (when B<-f> specified) and link targets (when B<-l>
+specified). 
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-f>
+
+Show also files.
+
+=item B<-l>
+
+Show also link targets.
+
+=item B<-h>, B<--help>
+
+show a short help page.
+
+=item B<-m>, B<--man>
+
+Show the man-page.
+
+=back
+
+=head1 AUTHOR
+
+Skeeve of perlmonks.org (perlmonks DOT org DOT Skeeve at XoXy dot net)
+
+Including ideas of Apple Fritter, a fellow Perl monk
+
+=cut
+# }}}

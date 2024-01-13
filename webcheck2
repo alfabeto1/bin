@@ -1,0 +1,11 @@
+#!/bin/bash
+### Comprueba las direcciones ip asociadas a mis nombres DNS
+# Cuando hay cambio de IP, para comprobar si se han actualizado los dns.
+date
+for i in arocha.tk \
+    {promo.,}saul-trainer.{ml,tk} \
+    sandbox1024.ml 
+do                                                              
+    host $i
+done
+exit

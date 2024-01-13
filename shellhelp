@@ -1,0 +1,98 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<shellhelp> - Busca ayuda de manual de comandos de shell
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item shellhelp [F<COMANDO>]
+
+=back
+
+=head1 DESCRIPTION
+
+Busca ayuda de manual de comandos de shell. Si no se encuentra el comando
+buscado, por defecto vamos al man de F<bash>.
+
+=head1 ARGUMENTS
+
+El argumento es el comando a buscar.
+
+=head1 OPTIONS
+
+No hay opciones.
+
+=head1 EXIT STATUS
+
+Allways 0.
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al
+autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luis M. Arocha Hernández <lah.data@gmail.com>.
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use 5.10.0;
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my %opt;                      # Command line options
+my $comando;                  # Comando a mostrar
+
+# }}}
+# {{{ Parametros
+getopts('huV',\%opt) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+$comando = shift||'bash';
+$comando = 'bash' if $comando =~ /^(if|endif|for|while|do|done|mapfile)$/;
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+
+system "man 1 $comando 2>/dev/null || man bash";
+exit 0;
+
+# }}}

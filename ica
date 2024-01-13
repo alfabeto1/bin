@@ -1,0 +1,140 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<ica> - Inline comments aligner
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item ica [-h|--help|-u|-V|--version]
+
+=item ica [-m MARCA] F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Lee lineas de código con posibles comentarios 'inline' e intenta alinearlos en
+la posición 32.
+
+=head1 ARGUMENTS
+
+Si se indica un fichero como argumento se tomará como fichero de entrada.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-m MARCA>
+
+Marca que indica inicio de comentario.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al
+autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use 5.10.0;
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+my $POS=50;
+
+# }}}
+# {{{ Variables
+my %opt;
+my $marca = '#';               # Marca de comentarios por defecto
+
+# }}}
+# {{{ Parametros
+getopts('hm:uV',\%opt) or usage('Fallo parámetros');
+help()              if $opt{h};
+usage()             if $opt{u};
+if ($opt{V}){version();exit 1;}
+$marca = $opt{m} if $opt{m};
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+while (<>){
+    if (/\{\{\{/ or /\}\}\}/){ # Leave markers as they come.
+        print;
+        next;
+    }
+    if (/(.+)\s*$marca\s*(.*)/){
+        my $a = $1;
+        my $b = $2;
+        $a=~ s/\s+$//;
+        my $a1 = $a;
+        $a1 =~ s/ñ/./i;
+        $a1 =~ s/á/./i;
+        $a1 =~ s/é/./i;
+        $a1 =~ s/í/./i;
+        $a1 =~ s/ó/./i;
+        $a1 =~ s/ú/./i;
+        $a1 =~ s/¡/./i;
+        $a1 =~ s/¿/./i;
+        $a1 =~ s/ü/./i;
+        $a1 =~ s/ç/./i;
+        $a = $a . ' 'x($POS - 2 - length($a1));
+        print $a.$marca." $b\n";
+    } else {
+        print;
+    }
+}
+
+exit 0;
+
+# }}}

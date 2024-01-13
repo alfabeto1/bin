@@ -1,0 +1,140 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+B<pcinfo> - Para extraer informacion del sistema en ficheros de texto.
+
+=head1 DESCRIPTION
+
+Se crean un fichero con información de configuración, distribución de discos,
+etc, etc.
+
+Esta informacion sera muy valiosa en caso de fallo de hardware, reconfiguracion
+o similar.
+
+Incluye informacion de passwords, asi que mucho ojo.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{
+# Variables
+DEST=/home/luis/Dropbox/Archive/backup
+OUTPUT=$DEST/pcinfo.txt
+COLUMNS=150
+SEP='===================================================================='
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+function commandin {
+    # Execute command and save output
+    echo Ejecutando $1
+    echo $SEP            >>$OUTPUT
+    echo "COMMAND: " $@  >>$OUTPUT
+    ($@|expand ||echo '  comando no encontrado')   2>/dev/null    >>$OUTPUT
+    echo " "             >>$OUTPUT
+}
+# }}}
+# {{{
+function filein {
+    # Include file content in results.
+    if test -e $1 ;then
+        if test -d $1;then
+            echo "DIR:  " $1 |tee -a $OUTPUT
+        else
+            echo "FILE: " $1 |tee -a $OUTPUT
+        fi
+        (rsync -adl $1 $DEST/|| echo 'No existe o sin permisos') 2>&1 |tee -a $OUTPUT
+    else
+        echo "FILE $1 not found"
+    fi
+}
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Borramos ficheros de destino
+rm -f $OUTPUT
+
+# }}}
+# {{{ Ejecutamos comandos para extraer info
+    # 'inxi -F -v7' \
+    # 'ec2metadata' \
+    # 'rpm -qa' \
+for i in \
+    'date -u' \
+    'uname -a' \
+    'mount' \
+    lsblk \
+    'fdisk -l' \
+    'df -a' \
+    'df -ia' \
+    'df -h' \
+    'lspci -v' \
+    lshw \
+    'lsusb -v' \
+    lsmod \
+    ifconfig \
+    route \
+    'dpkg --get-selections' \
+    'dpkg -la' \
+    ; do
+    commandin $i
+done
+# }}}
+# {{{ Copiamos ficheros
+echo $SEP            >>$OUTPUT
+mkdir -p $DEST
+for i in \
+    /etc/aliases \
+    /etc/apache2 \
+    /etc/apt \
+    /etc/crontab \
+    /etc/default \
+    /etc/crontab \
+    /etc/fstab \
+    /etc/hosts \
+    /etc/minidlna.conf \
+    /etc/letsencrypt \
+    /etc/network \
+    /etc/networks \
+    /etc/samba \
+    /etc/smartd.conf \
+    /etc/sudoers \
+    /etc/postfix/sasl/sasl_passwd \
+    /etc/banned-dshield \
+    /etc/banned-mine \
+    /etc/banned-spamhaus \
+    ; do
+    filein $i
+done
+# }}}
+# Terminamos
+chown -R luis:luis $OUTPUT $DEST

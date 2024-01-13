@@ -1,0 +1,23 @@
+#!/bin/bash
+### Descarga el indice de saultrainer y comprueba que es válido
+TMP=/tmp/check_saultrainer.txt
+LOG=$HOME/check_saultrainer.log
+LOG=/dev/null
+echo -n `date  '+%Y-%m-%d %H:%M:%S'` >>$LOG
+wget --quiet https://saultrainer.com -O $TMP -a $LOG
+if grep 'Tu momento es ahora' $TMP >/dev/null; then
+    wget --quiet https://saul-trainer.tk -O $TMP -a $LOG
+    if grep 'Tu momento es ahora' $TMP >/dev/null; then
+        echo " Todo Ok" >>$LOG
+        if [ "$1" == "Diario" ]; then
+            notify "Check diario. 👍Página principal OK en saultrainer.com y saul-trainer.tk" 
+        fi
+    else
+        notify "Ha fallado saul-trainer.tk 😱" 
+        echo " Ha fallado saul-trainer.tk" >>$LOG
+    fi
+else
+    notify "Ha fallado saultrainer.com 😱" 
+    echo " Ha fallado saultrainer.com" >>$LOG
+fi
+rm $TMP

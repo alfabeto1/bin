@@ -1,0 +1,9 @@
+#!/usr/bin/bash
+zimver="0.6"
+f=$1
+filename=$(basename "$f")
+filenoext=$(basename "$f" .md)
+outfile=${filenoext// /_}.txt
+#echo $f $filename $filenoext $outfile
+python ~/markdown2zim.py $f -o $outfile
+sed -i "1 i\Content-Type:\ text/x-zim-wiki\nWiki-Format:\ zim\ 0.6\nCreation-Date:\ $(date --iso-8601=minutes)\n" $outfile

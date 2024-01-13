@@ -1,0 +1,10 @@
+#!/usr/bin/perl
+### Cuenta lineas de 1000 en 1000
+$a=0;
+while (<>){
+    $a++;
+    if ( $a%1000 == 0) {
+        print "$a\n";
+    }
+}
+

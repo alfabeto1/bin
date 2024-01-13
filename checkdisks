@@ -1,0 +1,10 @@
+#!/bin/bash
+### Comprobación básica de los discos
+for i in `fdisk -l|grep Disco|sed -e 's/:.*//;s/.* //'`; do 
+    if test "$1" ; then
+        echo $i
+        smartctl -a $i|grep -i -P "overall-health|Temperature:|Temperature_Celsius|Temp. Threshold"
+    fi
+    hdparm -Tt $i
+    echo ===============================================
+done

@@ -1,0 +1,332 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<new_sh> - Crea el esqueleto de un nuevo script bash
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<new_sh> [-h|--help|-u|-V|--version]
+
+=item B<new_sh> [-v] [-c] [-i SCRIPT] [F<COMANDO>] [DESCRIPTION...]
+
+=back
+
+=head1 DESCRIPTION
+
+Crea un nuevo comando bash, con lo básico para acelerar el proceso de
+programación. El nuevo comando ya dispone de un conjunto completo de
+documentación, llamadas a help o usage, opciones, estructura de plegado vim,
+etcétera.
+
+Este comando deberá ser modificado para que realize su función, pero todo lo
+básico ya esta en su lugar.
+
+Si el comando a crear ya existe, se guarda un backup.
+
+También se puede utilizar para I<envolver> un script ya existente con todo esto.
+
+=head1 ARGUMENTS
+
+Si no se indica un nombre de F<COMANDO>, se crea uno llamado F<unnamed>.
+
+Si no se indica una descripción para el mismo, se pone una descripción por
+defecto.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-c>
+
+Console. Muestra el resultado en pantalla, en vez de crear el fichero del script.
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-i SCRIPT> (existing filename)
+
+Input. Usa el script indicado como origen, I<envolviendolo> con el estándar.
+
+=item B<-u>
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Verbose. Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a su autor
+original y de acuerdo con los términos de la licencia GPL. (GNU General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.2 $, 10;
+
+# }}}
+# {{{ Variables
+my $author = 'Luís M. Arocha Hernández';
+my $date   = long_date();           # Creation date
+my $desc;                           # Command description
+my $email  = '<lah.data@gmail.com>';# Author email
+my $name;                           # Command name
+my $rev    = '$'.'Revision: 0.1 $'; # CVS Revision for template
+my $template;                       # Template for shell script.
+my $year   = year();                # Copyright year
+my %opt;                            # Getopts options hash
+my $script = "dolog Done\nexit 0"; # script inicial
+
+# }}}
+# {{{ Parametros
+getopts("chi:uvV",\%opt) or usage("Fallo parámetros");
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+$name = shift   || 'unnamed';
+$desc = "@ARGV" || 'A useful bash script to do nothing';
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Leemos el template
+{
+    local $/;
+    $template = <DATA>
+}
+# }}}
+# {{{
+# Leemos script de entrada, si lo hubiera
+if ($opt{i}){
+    print "Leyendo el script de entrada $opt{i}\n" if $opt{v};
+    $script =slurp($opt{i}) or die "No se puede leer $opt{i}. $!\n";
+    if ($script !~ s/^#!.*sh.*\n//){
+        print "No es un script válido\n";
+        exit 1;
+    }
+}
+
+# }}}
+# {{{ Procesar el template
+$template =~ s/_AUTHOR_/$author/g;
+$template =~ s/_DATE_/$date/g;
+$template =~ s/_EMAIL_/$email/g;
+$template =~ s/_DESCRIPTION_/$desc/g;
+$template =~ s/_NAME_/$name/g;
+$template =~ s/_YEAR_/$year/g;
+$template =~ s/_REV_/$rev/g;
+$template =~ s/_SCRIPT_/$script/g;
+$template =~ s/\(\(\(/\{\{\{/g;
+$template =~ s/\)\)\)/\}\}\}/g;
+$template =~ s/\n--/\n=/g;
+
+# }}}
+# {{{ Creamos el comando o mostramos el resultado
+if ($opt{c}) {
+    print $template;
+} else {
+    if ( -e $name ) {
+        print  "$name ya existe. Se hace copia.\n" if $opt{v};
+        rename "$name","$name.old" or die "No se puede hacer copia de seguridad. $!\n";
+    }
+    open FILE, ">$name" or die "No se pudo crear $name. $!\n";
+    print FILE $template;
+    close FILE;
+    system "chmod u+x $name";
+    print "$name creado.\n";
+}
+exit 0;
+
+# }}}
+#==============================================================================#
+# DATA                                                                         #
+#==============================================================================#
+# {{{
+__DATA__
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# (((
+NUL=<<=cut
+--encoding utf-8
+
+--head1 NAME
+
+B<_NAME_> - _DESCRIPTION_
+
+--head1 SYNOPSIS
+
+--over 4
+
+--item B<_NAME_> [-h|--help|-u|-V|--version]
+
+--item B<_NAME_> [-v] [FILE...]
+
+--back
+
+--head1 DESCRIPTION
+
+_DESCRIPTION_.
+
+--head1 OPTIONS
+
+--over 4
+
+--item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+--item B<-u>
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+--item B<-v>
+
+Verbose. Muestra información detallada durante la ejecución.
+
+--item B<-V>, B<--version>
+
+Muestra la versión del comando.
+
+--back
+
+--head1 FILES
+
+Relación exaustiva de los ficheros utilizados por el programa, como ficheros de configuración,
+ficheros de arranque, o ficheros sobre los que el programa opera. Especificar nombre y ruta.
+
+--head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 AUTHOR
+
+Luis m. Arocha Hernandez <lah.data@gmail.com>
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright _YEAR_ el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a su autor original y
+de acuerdo con los términos de la licencia GPL. (GNU General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+_AUTHOR_ _EMAIL_.
+
+--cut
+
+# )))
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# (((
+function help {
+    pod2text -c $0
+    exit 1
+}
+# )))
+# (((
+function usage {
+    if test "$*"; then
+        echo $*
+    fi
+    pod2usage -verbose 1 $0
+    exit 1
+}
+# )))
+# (((
+function version {
+    echo "${0/*\//} - $VERSION"
+    exit 1
+}
+# )))
+# (((
+function dolog {
+    echo [$(date +%H:%M:%S)] $*
+}
+# )))
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# ((( Variables
+VERSION="$Revision: 3.2 $"
+VERSION=${VERSION#:\ }
+VERSION=${VERSION%\ \$}
+
+# )))
+# ((( Parametros
+while getopts huvV-: options; do
+    case "$options" in
+        h) help;;
+        u) usage ;;
+        v) verbose=on ;;
+        V) version;;
+       \?) usage "Fallo parámetros" ;;
+        -) if [ "$OPTARG" == "version" -o "$OPTARG" == "help" ]; then
+               $OPTARG;
+           else
+               usage "Fallo parámetros"
+           fi;;
+    esac
+done
+shift $(( $OPTIND - 1 ))
+
+# )))
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# (((
+_SCRIPT_
+
+# }}}

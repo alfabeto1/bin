@@ -1,0 +1,9 @@
+#!/bin/sh
+### Copy files to directory using pv to monitor process
+# pvcp files_to_copy dir
+# Beware of files with spaces
+command -v pv >/dev/null 2>&1 || \
+    { echo >&2 "Required pv but it's not installed.  Aborting."; exit 1;  }
+FILES=$(find $* -type f)
+cp -vr $*|pv -ls $FILES >/dev/null
+

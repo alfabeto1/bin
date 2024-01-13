@@ -1,0 +1,8 @@
+#!/bin/sh
+### Detiene la descarga de un fichero en mldonkey
+# Luís M. Arocha Hernández
+if [ ! -d /pub/mldonkey ]; then
+    echo Fail. No mldonkey here.
+    exit 1
+fi
+ml pause $@ | grep -va '^$'

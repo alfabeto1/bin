@@ -1,0 +1,214 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+
+=encoding utf-8
+
+=head1 NAME
+
+B<webpages> - Informa de las conexiones a cada page
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item webpages [-h|--help|-u|--usage|-V|--version]
+
+=item webpages [-v|--verbose] [-t|--test] F<FILE>
+
+=back
+
+=head1 DESCRIPTION
+
+Informa del pais de origen de las ips.
+
+=head1 ARGUMENTS
+
+El fichero es opcional. Indica fichero de access.log alternativo a utilizar.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-t>, B<--test>
+
+No ejecuta. Solo muestra lo que se haría.
+
+=item B<-u>, B<--usage>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>, B<--verbose>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 EXIT STATUS
+
+Listar los posibles valores de salida del programa y las condiciones en que esos valores son
+devueltos.
+
+=head1 FILES
+
+Relación exaustiva de los ficheros utilizados por el programa, como ficheros de configuración,
+ficheros de arranque, o ficheros sobre los que el programa opera. Especificar nombre y ruta.
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2021 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a su autor original y
+de acuerdo con los términos de la licencia GPL. (GNU General Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luis M. Arocha Hernández <lah.data@gmail.com>.
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos y pragmas
+use strict;
+use Getopt::Long qw/:config no_ignore_case bundling/;
+use CommonFunc qw/:all/;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 0.0 $, 10;
+my $queries = '/home/luis/etc/webintruders-queries.txt';
+my $ignore   = '/home/luis/etc/webintruders-ignores.txt';
+
+# }}}
+# {{{ Variables
+my %opt;
+my $file = '/var/log/apache2/access.log';
+my %page = qw//;
+my @offending;
+my @ignore;
+my $found;
+my $last ='';
+my $total=0;
+
+# }}}
+# {{{ Parametros
+Getopt::Long::Configure("bundling","no_ignore_case");
+GetOptions (
+            "h|help"       => \$opt{h},
+            "r|response=s" => \$opt{r},
+            "t|test"       => \$opt{t},
+            "u|usage"      => \$opt{u},
+            "v|verbose"    => \$opt{v},
+            "V|version"    => \$opt{V},
+            ) or usage('Fallo parámetros');
+
+help()    if $opt{h};
+usage()   if $opt{u};
+version() if $opt{V};
+
+$file = shift || $file;
+$opt{r}=$opt{r}|| '404';
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+# Leer lineas query
+open FILE, $queries or die $!;
+while (<FILE>){
+    last if /# LAST/;
+    next if /^#/;
+    chomp;
+    s/\//\\\//g;
+    s/\./\\./g;
+    push @offending, $_;
+}
+close FILE;
+# }}}
+# {{{
+# Leer lineas ignore
+open FILE, $ignore or die $!;
+while (<FILE>){
+    last if /# LAST/;
+    next if /^#/;
+    chomp;
+    s/\//\\\//g;
+    s/\./\\./g;
+    push @ignore, $_;
+}
+close FILE;
+# }}}
+# {{{
+# Procesar fichero access.log o similar
+open FILE, $file or die $!;
+while (<FILE>){
+    chomp;
+    $found=0;
+    s/\s+/ /go;
+
+    #  break each apache access_log record into nine variables
+    my ($vhost,             $clientAddress, $rfc1413,      $username,
+        $localTime,         $httpRequest,   $statusCode,
+        $bytesSentToClient, $referer,       $clientSoftware) =
+    /^(\S+) (\S+) (\S+) (\S+) \[(.+)\] \"(.+)\" (\S+) (\S+) \"(.*)\" \"(.*)\"/o;
+    $found=0;
+    foreach my $i (@ignore){
+        if ( $httpRequest =~ /$i/i){
+            $found=1;
+            last;
+        } 
+    }
+    next if $found;
+    $found=0;
+    foreach my $off(@offending){
+        if ($httpRequest =~  /$off/i){
+            $found=1;
+            last;
+        }
+    }
+    next if $found;
+    $httpRequest =~ s/ HTTP.*//;
+    $page{"$vhost $httpRequest"}++;
+}
+close FILE;
+# }}}
+# {{{
+# Show info
+foreach my $p(sort keys %page){
+    my $k=$p;
+    $k =~ s/ .*//;
+    if ($last and $k ne $last){
+        print "$last TOTAL: $total\n\n";
+        $total=0;
+    }
+    $last=$k;
+    print "$p : $page{$p}\n";
+    $total+=$page{$p};
+}
+print "$last TOTAL: $total\n\n";
+# }}}
+exit 0;
+

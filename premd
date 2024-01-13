@@ -1,0 +1,21 @@
+#!/bin/bash
+### Transform markdown in html and open in Firefox
+
+if [ -z "$1" ]; then
+	echo "Script needs an argument."
+	exit 1
+fi
+
+fname="${1%.*}"
+
+# Trim the path from the file name.
+title_w_ext="${1##*/}"
+# Trim the extension from the file name.
+title="${title_w_ext%.*}"
+
+pandoc -f markdown -t html -s "$1" > "${fname}.htm"
+
+# This will open your .htm file again if it is not on the current tab.
+# Check the window list for the html file to already be open and if not then launch it.
+wmctrl -l | grep -q "$title - Mozilla Firefox" || firefox "${fname}.htm" 2>/dev/null &
+

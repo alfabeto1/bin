@@ -1,0 +1,8 @@
+#!/usr/bin/perl 
+### media de los valores de entrada
+# Se espera solamente un número por línea
+while (<>){
+    chomp;
+    $total+=$_;
+}
+printf "Media %2.2f\n", $total/$.;

@@ -1,0 +1,398 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+=encoding utf-8
+
+=head1 NAME
+
+B<versions> - Versiones de los programas más importantes
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item versions [-h|-u|-V]
+
+=item versions [-v]
+
+=back
+
+=head1 DESCRIPTION
+
+Informa de las versiones (o la no existencia) de los programas más habituales,
+eliminando toda la parafernalia que se muestra cuando se ejecuta 
+C<comando --version>.
+
+=head1 ARGUMENTS
+
+No se aceptan argumentos
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>
+
+Help. Muestra la información de ayuda completa.
+
+=item B<-u>
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Verbose. Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Version. Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 BUGS
+
+No hay fallos conocidos en este script. Por favor informe de cualquier fallo al
+autor.
+
+Parches para mejoras o errores, comentarios y sugerencias serán bienvenidos.
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+function usage {
+    if test "$*"; then
+        echo $*
+    fi
+    pod2usage -verbose 1 $0
+    exit 1
+}
+
+# }}}
+# {{{
+function help {
+    pod2text -c $0
+    exit 1
+}
+
+# }}}
+# {{{
+function w() {
+    # w --> which
+    which $1 >/dev/null 2>&1
+}
+# }}}
+# {{{
+function f(){
+    # f --> fail
+    echo "$1 not found"
+}
+# }}}
+# {{{
+function ver() {
+    # ver --> extract version number
+    if [ $verbose ] ; then
+        cat
+    else
+        perl -ne '/(\d+\.\d+\.?\d*)/;print $1;print "\n"'
+    fi
+}
+# }}}
+# {{{
+#--------------------------------------------------------------+
+# Funciones para cada comando a revisar.                       |
+# Invocando 'cmd --version' o 'cmd -V'                         |
+#--------------------------------------------------------------+
+# {{{
+function v7z()  {
+    echo -n '7z:      '
+    if w 7z ;then
+        7z i|head -2|tail -1 |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vapache(){
+    PATH=/usr/sbin:$PATH
+    echo -n 'APACHE:  '
+    httpd -v 2>/dev/null|| echo not found |head -n 1
+}
+# }}}
+# {{{
+function vbash()  {
+    echo -n 'BASH:    '
+    if w bash ;then
+        bash --version|head -1        |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vcurl()  {
+    echo -n 'CURL:    '
+    if w curl ;then
+        curl --version|head -1        |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vcvs()   {
+    echo -n 'CVS:     '
+    if w cvs ;then
+        cvs --version |head -2|tail -1|ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vgit()  {
+    echo -n 'GIT:     '
+    if w git ;then
+        git --version |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vlinks() {
+    echo -n 'LINKS:   '
+    if w links ;then
+        links -version|ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vlynx() {
+    echo -n 'LYNX:    '
+    if w lynx ;then
+        lynx --version|head -1|ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vmysql() {
+    echo -n 'MYSQL:   '
+    if w mysql ;then
+        mysql -V     d                |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vmysqld() {
+    echo -n 'MYSQLD:  '
+    if w mysqld  ;then
+        mysqld -V                     |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vpsql()  {
+    echo -n 'PSQL:    '
+    if w psql ;then
+        psql -V |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vperl()  {
+    echo -n 'PERL:    '
+    if w perl ;then
+        perl --version|grep 'This is' |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vpython(){
+    echo -n 'PYTHON:  '
+    DEF=$(python -V 2>&1 |ver)
+    DEF2=$(python2 -V 2>&1 |ver)
+    DEF3=$(python3 -V 2>&1 |ver)
+    echo -n $DEF
+    if test "$DEF" == "$DEF2"; then
+        DEF2=""
+    fi
+    if test "$DEF" == "$DEF3"; then
+        DEF3=""
+    fi
+    if test -n "$DEF2$DEF3"; then
+        echo $DEF2 $DEF3
+    else
+        echo " not found"
+    fi
+}
+# }}}
+# {{{
+function vrpm()  {
+    echo -n 'RPM:     '
+    if w rpm ;then
+        rpm 2>&1 | head -1 |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vruby()  {
+    echo -n 'RUBY:    '
+    if w ruby ;then
+        ruby --version| head -1 |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vscreen()   {
+    echo -n 'SCREEN:  '
+    if w screen ;then
+        screen -v 2>&1|ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vsqlplus()   {
+    echo -n 'SQLPLUS: '
+    if w sqlplus ;then
+        sqlplus -v |head -2|tail -1 |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vsvn()   {
+    echo -n 'SVN:     '
+    if w svn ;then
+        svn --version 2>&1|head -1    |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vvim()   {
+    echo -n 'VIM:     '
+    if w vim ;then
+        vim  --version|head -1        |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vwget()  {
+    echo -n 'WGET:    '
+    if w wget ;then
+        wget --version|head -1        |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# {{{
+function vw3m()  {
+    echo -n 'W3M:     '
+    if w w3m ;then
+        w3m -version |ver
+    else
+        echo not found
+    fi
+}
+# }}}
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Variables
+VERSION="$Revision: 3.4 $"
+VERSION=${VERSION#:\ }
+VERSION=${VERSION%\ \$}
+
+# }}}
+# {{{ Parametros
+while getopts huvV options; do
+    case "$options" in
+        h) help ;;
+        u) usage ;;
+        v) verbose=on ;;
+        V) echo "${0/*\//} - $VERSION";exit 1;;
+       \?) usage "Fallo parámetros" ; exit 1 ;;
+    esac
+done
+shift $(( $OPTIND - 1 ))
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+if [ -f /etc/redhat-release ] ; then
+    cat /etc/redhat-release 
+elif [ -f /etc/SuSE-release ] ; then
+    head -1 /etc/SuSE-release 
+fi
+uname -a
+v7z
+vapache
+vbash
+vcurl
+vcvs
+vgit
+vlinks
+vlynx
+vmysql
+vmysqld
+vperl
+vpsql
+vpython
+vrpm
+vruby
+vscreen
+vsqlplus
+vsvn
+vvim
+vw3m
+vwget
+exit 0

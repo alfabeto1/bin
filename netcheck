@@ -1,0 +1,20 @@
+#!/bin/bash
+### Comprueba los accesos al exterior.
+# Para tener una idea de los fallos de red. Se deja funcionando varias horas y
+# se comprueba.
+while true; do
+    repeat=0
+    if ! wget https://www.webpagetest.org/ -q -t 1 -T 3 -O /dev/null; then
+        echo -n '*** KO ' | tee -a checkout.txt
+        date '+%Y-%m-%d %H:%M:%S' | tee -a checkout.txt
+        repeat=1
+    else
+        echo Ok
+    fi
+    if [ $repeat == 1 ]; then
+        sleep 5
+    else
+        sleep 60
+    fi
+done
+

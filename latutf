@@ -1,0 +1,17 @@
+#!/usr/bin/perl -p
+### Conversión rápida de latin1 a utf-8
+# El orden de los cambios es importante: 'á' la ultima
+s/\xe9/é/g;
+s/\xed/í/g;
+s/\xf3/ó/g;
+s/\xfa/ú/g;
+s/\xc1/Á/g;
+s/\xc9/É/g;
+s/\xcd/Í/g;
+s/\xd3/Ó/g;
+s/\xda/Ú/g;
+s/\xf1/ñ/g;
+s/\xd1/Ñ/g;
+s/\xa1/¡/g;
+s/\xbf/¿/g;
+s/\xe1/á/g;

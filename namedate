@@ -1,0 +1,177 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<namedate> - Pone en el nombre la fecha y hora de modificacion
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item namedate [-h|--help|-u|-V|--version]
+
+=item namedate [-v] [-o] [-t] F<FILE> [...]
+
+=back
+
+=head1 DESCRIPTION
+
+Renombra los ficheros que se le pasen como parámetros y les pone fecha y
+hora de última modificación. Conservando la extensión, por supuesto.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>
+
+Muestra la información de ayuda completa.
+
+=item B<-o>
+
+Only date. La fecha se convierte en el nombre. Si no se usa este parametro la
+fecha se añade al nombre.
+
+=item B<-r>
+
+Remove. Elimina el datetime, si existe en el nombre del fichero.
+
+=item B<-t>
+
+Test mode. No ejecuta. Solo muestra lo que se haría.
+
+=item B<-u>
+
+Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Muestra información detallada durante la ejecución.
+
+=item B<-V>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 COPYRIGHT and LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Pragmas
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my %opt;
+my $f1;
+
+# }}}
+# {{{ Parametros
+getopts("hortuvV",\%opt) or usage("Fallo parámetros");
+help()              if $opt{h};
+usage()             if $opt{u};
+if ($opt{V}){version();exit 1;}
+usage("-o y -r no se pueden usar simultaneamente") if $opt{o} and $opt{r};
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{
+foreach my $filename (@ARGV) {
+    my $ext = '';
+    my $f   = $filename;
+    my $num = 0;
+    my $t;
+    next if $f =~ /^\./;
+    next if $f =~ /\/\./;
+    if ( $f =~ /\d\d\d\d-\d\d-\d\d_\d\d-\d\d-\d\d(-\d+)*/ ) {
+        next unless $opt{r};
+    } else {
+        next if $opt{r};
+    }
+    my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,$atime,$mtime,$ctime,$blksz,$blocks)= stat($f);
+    my ($sec, $min, $hour, $mday, $mon, $year, $wday, undef, $isdst ) = localtime($mtime);
+    $year += 1900;
+    $mon++;
+    if ( $f =~ /(.*)(\..*)/ ) {
+        $f = $1;
+        $ext = $2;
+    }
+    $t = sprintf "%04d-%02d-%02d_%02d-%02d-%02d", $year, $mon,
+            $mday, $hour, $min, $sec, $num;
+    if ($opt{o}){
+        $f1 = "$t$ext";
+    } else {
+        if ($opt{r}){
+            $f1 = $f;
+            if ( $f1 =~ s/(-\d\d\d\d-\d\d-\d\d_\d\d-\d\d-\d\d(-\d+)*)$// ) {
+                $t='';
+            } else {
+                print "$f sin fecha. Se salta\n";
+                next;
+            }
+            $f1.=$ext;
+        } else {
+            $f1 = "$f-$t$ext";
+        }
+    }
+    if ($opt{r}){
+        if (-e $f1){
+            print "$filename no se puede renombrar, $f1 ya existe\n";
+            next;
+        }
+    } else {
+        while( -e $f1) {
+            $num++;
+            my $t1 = sprintf "%03d", $num;
+            if ($opt{o}){
+                $f1 = "$t-$t1$ext";
+            } else {
+                if ($opt{r}){
+                    $f1 = "$f$ext";
+                } else {
+                    $f1 = "$f-$t-$t1$ext";
+                }
+            }
+        }
+    }
+    if ($opt{t}){
+        print "mv -vi $filename $f1\n";
+    } else {
+        system "mv -vi $filename $f1";
+    }
+}
+exit 0;
+
+# }}}

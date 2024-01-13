@@ -1,0 +1,213 @@
+#!/usr/bin/perl
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+=encoding utf-8
+
+=head1 NAME
+
+B<rename> - Renombra ficheros segun una instrucción de cambio s/// de perl
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item rename [-h|--help|-u|-V|--version]
+
+=item rename [-v] [-r] [-t] (-l|-s|F<regexp>) [F<FILES...>]
+
+=back
+
+=head1 DESCRIPTION
+
+Renombra ficheros segun una instrucción de cambio s/// de perl.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-h>, B<--help>
+
+Muestra la información de ayuda completa.
+
+=item B<-l>
+
+Lowercase. Pasa a minúsculas.
+
+=item B<-r>
+
+Recursive. Recorre todos los directorios descendentes.
+
+=item B<-s>
+
+Safe. Change utf chars to ascii chars.
+
+=item B<-t>
+
+Testing. No se realizan los cambios.
+
+=item B<-u>
+
+Usage. Muestra la información básica de uso (SYNOPSIS).
+
+=item B<-v>
+
+Verbose. Muestra información durante el proceso.
+
+=item B<-V>, B<--version>
+
+Muestra la versión del comando y los módulos usados.
+
+=back
+
+=head1 EXAMPLES
+
+    rename -v 's/Spanish/English/' *.txt
+
+    rename -tv 's/-HDRip//' *.avi
+
+    rename -r 's/^\d+//'
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# ENVIRONMENT                                                                  #
+#==============================================================================#
+# {{{ Modulos
+use strict;
+use CommonFunc qw/:all/;
+use Getopt::Std;
+
+# }}}
+# {{{ Constantes (o casi)
+our $VERSION = substr q$Revision: 3.1 $, 10;
+
+# }}}
+# {{{ Variables
+my $args = '';
+my $NameOld;
+my $NameNew;
+my %opt;
+my $regexp;
+my @args;
+
+# }}}
+# {{{ Parametros
+getopts( 'lhrstuvV', \%opt ) or usage('Fallo parámetros');
+help()    if $opt{h};
+usage()   if $opt{u};
+if ($opt{V}){version();exit 1;}
+if ($opt{l}){
+    $regexp = 'tr/A-Z/a-z/';
+} elsif ($opt{s}){
+    $regexp = 's/(á|à|ä|â|ã)/a/g;';
+    $regexp.= 's/(é|è|ë|ê)/e/g;';
+    $regexp.= 's/(í|ì|ï|î)/i/g;';
+    $regexp.= 's/(ó|ò|ö|ô|õ)/o/g;';
+    $regexp.= 's/(ú|ù|ü|û)/u/g;';
+    $regexp.= 's/(Á|À|Ä|Â|Ã)/A/g;';
+    $regexp.= 's/(É|È|Ë|Ê)/E/g;';
+    $regexp.= 's/(Í|Ì|Ï|Î)/I/g;';
+    $regexp.= 's/(Ó|Ò|Ö|Ô|Õ)/O/g;';
+    $regexp.= 's/(Ú|Ù|Ü|Û)/U/g;';
+    $regexp.= 's/ñ/n/g;';
+    $regexp.= 's/Ñ/N/g;';
+    $regexp.= 's/ç/z/g;';
+    $regexp.= 's/Ç/Z/g;';
+    $regexp.= 's/¿/_/g;';
+    $regexp.= 's/¡/_/g;';
+    $regexp.= 's/\\\\/_/g;';
+    $regexp.= 's/:/_/g;';
+    $regexp.= 's/ /_/g;';
+    $regexp.= 's/\#/_/g;';
+    $regexp.= 's/\@/_/g;';
+    $regexp.= 's/=/_/g;';
+    $regexp.= 's/^-/_/g;';
+    $regexp.= 's/__+/_/g;';
+} else {
+    $regexp = shift;
+}
+@args   = map {"\"$_\""} @ARGV;
+$opt{v} = 1 if $opt{t}; # if trying, verbose.
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+# {{{ Obtener la lista de ficheros a procesar
+$args = ' -maxdepth 1 ' unless $opt{r};
+$args = "find @args $args|";
+open FILE, $args or die "$args\n";
+my @files = <FILE>;
+chomp @files;
+close FILE;
+@files = reverse(@files);
+print "$#files ficheros a procesar\n" if $opt{v};
+
+# }}}
+# {{{ Proceso
+# Rename the files
+foreach my $f (@files) {
+    $f           =~ s/^\.\///;
+    next if $f =~ /^\.\.?$/;
+    my $filename = basename($f);
+    my $dir      = dirname($f);
+    $_           = $NameOld = $filename;
+    eval("$regexp;return 1;") or die "Regexp Error:\n $regexp\n$@\n";
+    $NameNew = $_;
+    if ( $NameNew eq $NameOld or
+        !$NameNew ) {
+        # Do nothing
+    } elsif ( $NameNew =~ /^\./ ) {
+        print "  Error: could not rename '$NameOld' to '$NameNew' (invalid name)\n";
+    } elsif ( -f $NameNew ) {
+        print "  Error: could not rename '$NameOld' to '$NameNew' (exist)\n";
+    } else {
+        print "  $dir$NameOld --> $dir$NameNew\n" if $opt{v};
+        next                                      if $opt{t};
+        rename( "$dir$NameOld", "$dir$NameNew" ) or
+            print "  Error: could not rename '$dir$NameOld' to '$dir$NameNew'. $!\n";
+    }
+}
+exit 0;
+
+# }}}
+#==============================================================================#
+# FUNCTIONS                                                                    #
+#==============================================================================#
+# {{{
+sub basename {
+    my $name = shift;
+    $name =~ s/.*\///;
+    return $name;
+}
+
+# }}}
+# {{{
+sub dirname {
+    my $name = shift;
+    return '' unless $name =~ /\//;
+    $name =~ s/\/$//;
+    $name =~ s|/([^/]+)$||;
+    return $name . "/";
+}
+
+# }}}

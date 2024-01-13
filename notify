@@ -1,0 +1,6 @@
+#!/bin/bash
+text+="$*"$'\n'
+text+="Servidor: $HOSTNAME"$'\n'
+DATE=`date "+%Y-%m-%d %H:%M:%S"`
+text+="$DATE"$'\n'
+curl -s -d "$text" ntfy.sh/LuisArocha 2>/dev/null >/dev/null
