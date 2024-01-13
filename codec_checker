@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+### Comprobación de codecs de video para poder usar en smart tv no muy smart
 
 use strict;
 use warnings;

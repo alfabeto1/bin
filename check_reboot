@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+### Comprueba si servidor OCI necesita reboot y manda un mensaje
 
 if [ -f /var/run/reboot-required ]; then
     message=`cat /var/run/reboot-required`

@@ -1,4 +1,5 @@
 #!/bin/bash
+### Enviar un mensaje a ntfy
 text+="$*"$'\n'
 text+="Servidor: $HOSTNAME"$'\n'
 DATE=`date "+%Y-%m-%d %H:%M:%S"`

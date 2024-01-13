@@ -1,1 +1,3 @@
+#!/usr/bin/sh
+### Editar freeorion file
 vim ~/.local/share/freeorion/save/luis.sav
