@@ -1,0 +1,49 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut
+
+=head1 NAME
+
+mlbaja - Lista ficheros bajandose con mldonkey
+
+=head1 DESCRIPTION
+
+Lista ficheros bajandose con mldonkey
+
+=cut
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+which nc 2>/dev/null >/dev/null 
+if [[ $? > 0 ]] ; then
+    echo Fail. No nc. 
+    exit 1
+fi
+if [ ! -d /pub/mldonkey ]; then
+    echo Fail. No mldonkey here.
+    exit 1
+fi
+nc -q 2 localhost 4000 > /tmp/mlbaja.txt<<EOF
+auth luis $MLPASS
+vd
+q
+EOF
+sed -i'' -e 's/Uploaded/Upl/;s/Downloaded/Dwl/'             /tmp/mlbaja.txt
+sed -i'' -e 's/Shared/Shd/;s/-       . admin mldonkey//'    /tmp/mlbaja.txt
+sed -i'' -e 's/-       . luis *mldonkey//'                  /tmp/mlbaja.txt
+sed -i'' -e 's/-       .               //'                  /tmp/mlbaja.txt
+sed -i'' -e 's/Rele *Comm *User *Group   //;/Downloaded /d' /tmp/mlbaja.txt
+sed -i'' -e '/MLdonkey command-line/d;/^$/d'                /tmp/mlbaja.txt
+sed -i'' -e 's/^> $//;/^>/d;/^Bad/d;/^Use/d'                /tmp/mlbaja.txt
+sed -i'' -e '/ auth /d;/MLDonkey/d;/mldonkey/d'             /tmp/mlbaja.txt
+sed -i'' -e '/Full access enabled/d;'                       /tmp/mlbaja.txt
+sed -i'' -e '/Dwl 0/d;/^$/d;s/\]  / /;s/\[D /D/;s/\[B /B/'  /tmp/mlbaja.txt
+sed -i'' -e 's/Num       /Num    /;s/^  //'                 /tmp/mlbaja.txt
+perl -pe 's/ (\d*\d\.\d) ( *\d*\.?\d[gkm]?b)/$1$2/'         /tmp/mlbaja.txt
+echo -n '[2;37;0m'
+rm /tmp/mlbaja.txt

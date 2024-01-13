@@ -1,0 +1,73 @@
+#!/bin/bash
+#==============================================================================#
+# POD                                                                          #
+#==============================================================================#
+# {{{
+NUL=<<=cut 
+=encoding utf-8
+
+=head1 NAME
+
+B<torrent> - Mete un fichero torrent o un enlace magnet o enlace ed2k en el mldonkey
+
+=head1 SYNOPSIS
+
+=over 4
+
+=item B<torrent> (torrentfile | ed2link | magnetlink)
+
+=back
+
+=head1 DESCRIPTION
+
+Mete un fichero torrent o un enlace torrent o enlace ed2k en el mldonkey
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2017 el autor.
+
+Todos los derechos reservados.
+
+Puede usar, copiar, modificar, distribuir y vender este software, reconociendo a
+su autor original y de acuerdo con los términos de la licencia GPL. (GNU General
+Public License).
+
+I<No se dan garantías de ningun tipo. Use este software a su propio riesgo.>
+
+=head1 AUTHOR
+
+Luís M. Arocha Hernández <lah.data@gmail.com>
+
+=cut
+
+# }}}
+#==============================================================================#
+# MAIN                                                                         #
+#==============================================================================#
+for file in $*; do
+    echo --------------- $file
+    if [ -f "$file" ]; then
+        ext="${file##*.}"
+        f=`basename "$file"`
+    fi
+    if [ "$ext" = "torrent" ]; then
+        if [ ! -f "$file" ] ; then
+            echo "FAIL. Fichero inexistente."
+            exit 1;
+        fi
+        cp -v "$file" /tmp/temp.torrent
+        nc -q 2 localhost 4000 <<EOF
+auth luis $MLPASS
+dllink '/tmp/temp.torrent'
+q
+EOF
+        rm /tmp/temp.torrent
+    else
+    nc -q 2 localhost 4000 <<EOF
+auth luis $MLPASS
+dllink $file
+q
+EOF
+    fi
+done
+exit

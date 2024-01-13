@@ -1,0 +1,17 @@
+#!/bin/bash
+### Suministra información sobre un fichero en descarga en mldonkey
+# Luís M. Arocha Hernández
+if [ ! -d /pub/mldonkey ]; then
+    echo Fail. No mldonkey here.
+    exit 1
+fi
+/bin/nc -q 2 localhost 4000 > /tmp/mlbaja.txt<<EOF
+auth luis $MLPASS
+vd $@
+q
+EOF
+sed -i'' -e '/MLdonkey command-line/d;/^$/d' /tmp/mlbaja.txt
+sed -i'' -e 's/^> $//;/^>/d;/^Bad/d;/^Use/d' /tmp/mlbaja.txt
+sed -i'' -e '/ auth /d;/MLDonkey/d;/mldonkey/d' /tmp/mlbaja.txt
+cat /tmp/mlbaja.txt
+rm /tmp/mlbaja.txt
