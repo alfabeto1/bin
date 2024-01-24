@@ -114,7 +114,7 @@ DISPLAY=:0.0 gsettings set org.gnome.desktop.background  picture-uri file://$TEM
 # if [ $isdual ]; then
     DISPLAY=:0.0 gsettings set org.gnome.desktop.screensaver picture-options spanned
     DISPLAY=:0.0 gsettings set org.gnome.desktop.background  picture-options spanned
-    DISPLAY=:0.0 feh -V --no-xinerama --bg-fill "$TEMP" 
+    DISPLAY=:0.0 feh -V --no-xinerama --bg-fill --no-fehbg "$TEMP" 
 # else
 #     DISPLAY=:0.0 gsettings set org.gnome.desktop.screensaver picture-options zoom
 #     DISPLAY=:0.0 gsettings set org.gnome.desktop.background  picture-options zoom
