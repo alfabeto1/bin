@@ -2,10 +2,12 @@
 ### reparte nuevos ficheros a los servidores de oracle
 # Hay que ejecutarlo desde HOME y poner el path completo
 # ej: repartir etc/codebits.txt
-SERVERS="frodo saruman"
-for i in $*; do 
-    for j in $SERVERS; do 
-        scp -p $i ubuntu@$j:$i
+SERVERS="frodo"
+SERVERS="$(cat /etc/hosts|grep  -v localhost|grep -v ^$|grep -v ::|grep -v ^#|f 2)"
+for server in $SERVERS; do 
+    echo 'Servidor '$server
+    for file in $*; do 
+        scp -p $file ubuntu@$server:$file
     done
 done
 

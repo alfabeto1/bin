@@ -176,12 +176,14 @@ if [[ $mode == 1 ]]; then
     HOWMANY=7    # Una semana
     TODAY=Copia-D-`date +%Y-%m-%d`
     PREFIX=Copia-D
+    periodo=diario
 fi
 if [[ $mode == 2 ]]; then
     dolog "Set for mode 2 - Weekly"
     HOWMANY=16   # Casi 4 meses  
     TODAY=Copia-W-`date +%Y-%m-%d`
     PREFIX=Copia-W
+    periodo=semanal
 fi
 if [[ $mode == 3 ]]; then
     dolog "Set for mode 3 - Monthly"
@@ -190,6 +192,7 @@ if [[ $mode == 3 ]]; then
     DEST=/media/luis/WD2TB
     TODAY=Copia-M-`date +%Y-%m-%d`
     PREFIX=Copia-M
+    periodo=mensual
 fi
 # }}}
 # {{{
@@ -245,6 +248,6 @@ else
     rm -rf `ls -1d $DEST/$PREFIX*-????-??* -tr 2>/dev/null |head -n -$HOWMANY`
 fi
 # }}}
-dolog "Backup finalizado. Destino: $DEST/$TODAY"
-notify "Backup finalizado. Destino: $DEST/$TODAY"
+dolog "Backup $periodo finalizado."
+notify "Backup $periodo finalizado."
 exit 0

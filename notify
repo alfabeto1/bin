@@ -1,7 +1,8 @@
 #!/bin/bash
 ### Enviar un mensaje a ntfy
 text+="$*"$'\n'
-text+="Servidor: $HOSTNAME"$'\n'
+text1="Servidor: $HOSTNAME"$'\n'
+text1+="$DATE"$'\n'
 DATE=`date "+%Y-%m-%d %H:%M:%S"`
-text+="$DATE"$'\n'
-curl -s -d "$text" ntfy.sh/LuisArocha 2>/dev/null >/dev/null
+text1+=$text
+curl -s -d "$text1" ntfy.sh/LuisArocha 2>/dev/null >/dev/null
