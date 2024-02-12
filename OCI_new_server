@@ -1,0 +1,92 @@
+#!/bin/sh
+# Script para ejecutar en los nuevos servidores OCI
+
+# Inicial ----------------------------------------------------------------------
+sudo timedatectl set-timezone Atlantic/Canary
+sudo apt-get update
+sudo apt-get dist-upgrade
+sudo apt-get install postfix vim git stress-ng supervisor mutt
+sudo unminimize
+
+# Stress -----------------------------------------------------------------------
+cat >stress.txt <<EOF
+[program:cpu_stress]
+command=/usr/bin/stress-ng --cpu 1 --cpu-load 20
+directory=/usr/bin/
+user=root
+autostart=true
+autorestart=true
+redirect_stderr=true
+stdout_logfile=/var/log/stress.log
+
+[program:memory_stress]
+command=/usr/bin/stress-ng --vm 1 --vm-bytes 20%% --vm-hang 0
+directory=/usr/bin/
+user=root
+autostart=true
+autorestart=true
+redirect_stderr=true
+stdout_logfile=/var/log/stress.log
+EOF
+sudo sh -c 'cat stress.txt >/etc/supervisor/conf.d/stress.conf'
+sudo supervisorctl reread
+sudo supervisorctl reload
+rm stress.txt
+
+# Copias -----------------------------------------------------------------------
+mkdir copias
+cat >copias/backup <<EOF
+#!/bin/bash
+# Copia de seguridad.
+### Modificar este proceso para conservar los datos cruciales de cada servidor
+DATE=`date +%F`
+DEST=$HOME/copias/$HOSTNAME-$DATE.tgz
+fail(){
+    text="Servidor: $HOSTNAME"$'\n'
+    DATE=`date "+%Y-%m-%d %H:%M:%S"`
+    text+="$DATE"$'\n'
+    text+="Ha fallado el backup."$'\n'
+    text+="$*"$'\n'
+    echo "$text"
+    curl -H ta:frowning_face -s -d "$text" ntfy.sh/LuisArocha >/dev/null
+    exit 1
+}
+ok(){
+    text="Servidor: $HOSTNAME"$'\n'
+    DATE=`date "+%Y-%m-%d %H:%M:%S"`
+    text+="$DATE"$'\n'
+    text+="Backup finalizado."$'\n'
+    text+="Destino: $DEST"$'\n'
+    curl -H ta:blush -s -d "$text" ntfy.sh/LuisArocha >/dev/null
+    exit 0
+}
+sudo tar -czf $DEST $HOME || fail $LINENO tar dokuwiki
+cd $HOME/copias && keeplast $HOSTNAME
+ok
+EOF
+chmod +x copias/backup
+
+# Crontab usuario --------------------------------------------------------------
+crontab -l >crontab.txt
+cat >>crontab.txt <<EOF
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:/home/ubuntu/bin
+@daily copias/backup
+@daily check_reboot
+EOF
+crontab <crontab.txt
+rm crontab.txt
+
+# Crontab global ---------------------------------------------------------------
+cat >crontab.txt <<EOF
+@daily  root journalctl --vacuum-time=2weeks
+@reboot root curl -d "$(hostname): server reboot" ntfy.sh/LuisArocha -s >/dev/null
+EOF
+sudo sh -c 'cat crontab.txt >>/etc/crontab'
+rm crontab.txt
+
+
+# mio.tgz ----------------------------------------------------------------------
+wget 'https://www.dropbox.com/scl/fi/iomhnkka5azdj7kze9lox/mio.tgz?rlkey=b7mq9czm7eoyg0srlf62gbkto&dl=0' -O mio.tgz
+tar -xzvf mio.tgz
+bin/entorno -r
+source .bashrc
