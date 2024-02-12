@@ -1,0 +1,13 @@
+#!/usr/bin/bash
+### reparte nuevos ficheros a los servidores de oracle
+# Hay que ejecutarlo desde HOME y poner el path completo
+# ej: repartir etc/codebits.txt
+SERVERS="frodo"
+SERVERS="$(cat /etc/hosts|grep  -v localhost|grep -v ^$|grep -v ::|grep -v ^#|f 2)"
+for server in $SERVERS; do 
+    echo Copiando $server
+    rsync -a --delete ubuntu@$server:copias /pub/copias-servidores/$server/ || notify 'Fallo rsync frodo.'
+done
+notify 'Terminada copia de seguridad de servidores remotos'
+
+
