@@ -1,5 +1,5 @@
 #!/bin/bash
 ### Crear fichero mio.tgz
-cd $HOME
-tar -chzf mio.tgz bin var etc lib
+tar -chzf $HOME/Dropbox/mio.tgz bin var etc lib
+ls -l $HOME/Dropbox/mio.tgz
 echo Done!

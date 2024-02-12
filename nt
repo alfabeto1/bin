@@ -148,9 +148,9 @@ my $HOME          = $ENV{HOME};
 my $BASEDIR       = "$HOME/Dropbox/NOTAS";
 my $NOTEFILE      = "";
 my $NORMALSCREEN  = 80;
-my $BIGSCREEN     = 95;
-my $VERYBIGSCREEN = 110;
-my $UBERSCREEN    = 120;
+my $BIGSCREEN     = 100;
+my $VERYBIGSCREEN = 120;
+my $UBERSCREEN    = 140;
 my $cls           = "\ec";
 my $reset         = "\e[0m";
 my $white         = "\e[1;37m";
@@ -381,7 +381,6 @@ sub do_edit($){
             $n = int($n/10+.999)*10;
             $antk1 = $k1;
             if ($n == $note or $k =~ /$note/i){
-                print "Si\n";
                 if ($file){
                     $file .= " $notedir/$k1"
                 } else {

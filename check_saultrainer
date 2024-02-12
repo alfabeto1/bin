@@ -3,21 +3,32 @@
 TMP=/tmp/check_saultrainer.txt
 LOG=$HOME/check_saultrainer.log
 LOG=/dev/null
+fail(){
+    text="Servidor: $HOSTNAME"$'\n'
+    DATE=`date "+%Y-%m-%d %H:%M:%S"`
+    text+="$DATE"$'\n'
+    text+="$*"$'\n'
+    echo "$text"
+    curl -H ta:frowning_face -s -d "$text" ntfy.sh/SaulTrainerGC >/dev/null
+    exit 1
+}
+ok(){
+    text="Servidor: $HOSTNAME"$'\n'
+    DATE=`date "+%Y-%m-%d %H:%M:%S"`
+    text+="$DATE"$'\n'
+    text+="$*"$'\n'
+    curl -H ta:blush -s -d "$text" ntfy.sh/SaulTrainerGC >/dev/null
+    exit 0
+}
 echo -n `date  '+%Y-%m-%d %H:%M:%S'` >>$LOG
 wget --quiet https://saultrainer.com -O $TMP -a $LOG
 if grep 'Tu momento es ahora' $TMP >/dev/null; then
-    wget --quiet https://saul-trainer.tk -O $TMP -a $LOG
-    if grep 'Tu momento es ahora' $TMP >/dev/null; then
-        echo " Todo Ok" >>$LOG
-        if [ "$1" == "Diario" ]; then
-            notify "Check diario. 👍Página principal OK en saultrainer.com y saul-trainer.tk" 
-        fi
-    else
-        notify "Ha fallado saul-trainer.tk 😱" 
-        echo " Ha fallado saul-trainer.tk" >>$LOG
+    echo " Todo Ok" >>$LOG
+    if [ "$1" == "Diario" ]; then
+        ok "Check diario. 👍Página principal OK en saultrainer.com" 
     fi
 else
-    notify "Ha fallado saultrainer.com 😱" 
+    fail "Ha fallado saultrainer.com 😱" 
     echo " Ha fallado saultrainer.com" >>$LOG
 fi
 rm $TMP
